@@ -1,0 +1,2649 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>BIRD HUNTER – PEMBURU TARGET CERDAS</title>
+
+  <!-- Tailwind CSS untuk tata letak modern dan responsif -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts: Fredoka (ceria & ramah anak) + Nunito (jelas & mudah dibaca) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet" />
+
+  <!-- MediaPipe Hands CDN untuk deteksi jari telunjuk & gesture pinch -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <style>
+    :root {
+      --font-display: 'Fredoka', cursive, sans-serif;
+      --font-body: 'Nunito', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: var(--font-body);
+      background: #38bdf8;
+    }
+
+    .font-display {
+      font-family: var(--font-display);
+    }
+
+    /* Kanvas utama memenuhi layar */
+    #gameCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      z-index: 1;
+      touch-action: none;
+    }
+
+    /* Tombol bergaya arcade 3D yang empuk & menarik bagi anak SD */
+    .btn-arcade {
+      font-family: var(--font-display);
+      transition: transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.14s ease, filter 0.14s ease;
+      cursor: pointer;
+    }
+
+    .btn-arcade:hover:not(:disabled) {
+      transform: translateY(-2px) scale(1.02);
+      filter: brightness(1.04);
+    }
+
+    .btn-arcade:active:not(:disabled) {
+      transform: translateY(3px) scale(0.98);
+    }
+
+    .btn-green {
+      background: linear-gradient(180deg, #4ade80 0%, #16a34a 100%);
+      box-shadow: 0 5px 0 #15803d, 0 10px 20px rgba(22, 163, 74, 0.35);
+      border: 2px solid #86efac;
+    }
+
+    .btn-green:active:not(:disabled) {
+      box-shadow: 0 2px 0 #15803d;
+    }
+
+    .btn-amber {
+      background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%);
+      box-shadow: 0 5px 0 #b45309, 0 10px 20px rgba(245, 158, 11, 0.35);
+      border: 2px solid #fde68a;
+    }
+
+    .btn-amber:active:not(:disabled) {
+      box-shadow: 0 2px 0 #b45309;
+    }
+
+    .btn-sky {
+      background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+      box-shadow: 0 5px 0 #0369a1, 0 10px 20px rgba(2, 132, 199, 0.35);
+      border: 2px solid #bae6fd;
+    }
+
+    .btn-sky:active:not(:disabled) {
+      box-shadow: 0 2px 0 #0369a1;
+    }
+
+    .btn-purple {
+      background: linear-gradient(180deg, #c084fc 0%, #7c3aed 100%);
+      box-shadow: 0 5px 0 #5b21b6, 0 10px 20px rgba(124, 58, 237, 0.35);
+      border: 2px solid #e9d5ff;
+    }
+
+    .btn-purple:active:not(:disabled) {
+      box-shadow: 0 2px 0 #5b21b6;
+    }
+
+    /* Panel kaca cerah bernuansa taman fantasi */
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 3px solid rgba(255, 255, 255, 0.95);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+    }
+
+    /* Animasi melayang lembut */
+    @keyframes floatSlow {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-6px); }
+    }
+
+    .animate-float {
+      animation: floatSlow 3.2s ease-in-out infinite;
+    }
+
+    @keyframes popIn {
+      0% { opacity: 0; transform: scale(0.84) translateY(16px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .animate-pop-in {
+      animation: popIn 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    /* Custom scrollbar ramah tampilan untuk modal */
+    .custom-scroll::-webkit-scrollbar {
+      width: 8px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 999px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #94a3b8;
+      border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- =====================================================================
+       KANVAS UTAMA GAME TAMAN BURUNG FANTASI
+       ===================================================================== -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- =====================================================================
+       TOAST NOTIFIKASI RAMAH ANAK (PENGGANTI ALERT)
+       ===================================================================== -->
+  <div id="toastContainer" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex flex-col items-center gap-2 w-full max-w-md px-4"></div>
+
+  <!-- =====================================================================
+       PREVIEW KAMERA MINI + OVERLAY LANDMARK JARI (POJOK KIRI BAWAH)
+       ===================================================================== -->
+  <div id="cameraWidget" class="hidden fixed bottom-3 left-3 z-40 rounded-2xl overflow-hidden border-4 border-white shadow-2xl bg-slate-900 w-36 sm:w-44 aspect-[4/3] transition-all">
+    <video id="webcamVideo" class="hidden" playsinline autoplay muted></video>
+    <canvas id="handOverlayCanvas" class="w-full h-full block"></canvas>
+    <div id="cameraGestureBadge" class="absolute bottom-1.5 left-1.5 right-1.5 px-2 py-0.5 rounded-lg bg-slate-900/80 text-white text-[10px] sm:text-xs font-bold text-center truncate">
+      Arahkan Tangan ✋
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       HUD / NAVBAR SAAT BERMAIN
+       ===================================================================== -->
+  <header id="gameHud" class="hidden fixed top-0 left-0 right-0 z-30 px-2 sm:px-4 pt-2 sm:pt-3 pointer-events-none">
+    <div class="max-w-6xl mx-auto flex flex-col gap-2">
+      <!-- Baris Atas: Identitas Pemain, Level, Skor, Timer & Kontrol Cepat -->
+      <div class="pointer-events-auto glass-panel rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 flex flex-wrap items-center justify-between gap-2">
+        <!-- Kiri: Avatar & Nama Pemain -->
+        <div class="flex items-center gap-2 sm:gap-3">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-300 to-orange-500 flex items-center justify-center text-white text-lg sm:text-xl shadow-md border-2 border-white">
+            🦜
+          </div>
+          <div>
+            <div class="text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-emerald-700 leading-none">
+              Penjaga Taman
+            </div>
+            <div id="hudPlayerName" class="font-display text-sm sm:text-lg font-bold text-slate-800 leading-tight max-w-[120px] sm:max-w-[180px] truncate">
+              Siswa Hebat
+            </div>
+          </div>
+        </div>
+
+        <!-- Tengah: Level, Nomor Soal & Badge HOTS/MOTS/LOTS -->
+        <div class="flex items-center gap-1.5 sm:gap-2.5">
+          <div class="px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl bg-sky-100 border-2 border-sky-300 text-sky-900 font-display font-bold text-xs sm:text-sm">
+            Level <span id="hudLevel">1</span>/5
+          </div>
+          <div class="px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl bg-purple-100 border-2 border-purple-300 text-purple-900 font-display font-bold text-xs sm:text-sm">
+            Soal <span id="hudQuestionNum">1</span>/3
+            <span id="hudCogLevel" class="ml-1 px-1.5 py-0.5 text-[10px] rounded-md bg-purple-600 text-white">LOTS</span>
+          </div>
+        </div>
+
+        <!-- Kanan: Skor, Timer, Tombol Kamera, Suara, dan Peta -->
+        <div class="flex items-center gap-1.5 sm:gap-2">
+          <!-- Skor -->
+          <div class="px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl bg-amber-100 border-2 border-amber-300 flex items-center gap-1.5">
+            <span class="text-sm sm:text-base">⭐</span>
+            <span id="hudScore" class="font-display font-bold text-amber-900 text-xs sm:text-base">0</span>
+          </div>
+
+          <!-- Timer -->
+          <div class="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-emerald-100 border-2 border-emerald-300 flex items-center gap-1">
+            <span class="text-xs sm:text-sm">⏱️</span>
+            <span id="hudTimer" class="font-display font-bold text-emerald-900 text-xs sm:text-sm tabular-nums">00:00</span>
+          </div>
+
+          <!-- Toggle Kamera Gesture -->
+          <button id="hudCamToggleBtn" type="button" title="Aktifkan/Matikan Kamera Gesture"
+            class="btn-arcade px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border-2 border-slate-300 text-slate-700 text-xs sm:text-sm font-bold flex items-center gap-1">
+            <span id="hudCamIcon">📷</span>
+            <span class="hidden md:inline" id="hudCamLabel">Kamera</span>
+          </button>
+
+          <!-- Toggle Suara -->
+          <button id="hudSoundToggleBtn" type="button" title="Suara Efek"
+            class="btn-arcade px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border-2 border-slate-300 text-slate-700 text-xs sm:text-sm font-bold">
+            <span id="hudSoundIcon">🔊</span>
+          </button>
+
+          <!-- Kembali ke Peta Level -->
+          <button id="hudHomeBtn" type="button" title="Peta Level"
+            class="btn-arcade px-2.5 py-1.5 rounded-xl bg-rose-100 hover:bg-rose-200 border-2 border-rose-300 text-rose-700 text-xs sm:text-sm font-bold">
+            🗺️
+          </button>
+        </div>
+      </div>
+
+      <!-- Kartu Pertanyaan Utama -->
+      <div class="pointer-events-auto glass-panel rounded-2xl px-4 py-2.5 sm:px-6 sm:py-3.5 shadow-xl border-2 border-amber-200">
+        <div class="flex items-center justify-between gap-2 mb-1">
+          <span id="hudLevelTitle" class="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-sky-700">
+            Level 1: Taman Burung Ceria
+          </span>
+          <span class="text-[11px] sm:text-xs font-bold text-slate-500">
+            Cubit (Pinch) 🤏 atau Klik Balon Jawaban!
+          </span>
+        </div>
+        <p id="questionText" class="text-slate-800 font-extrabold text-sm sm:text-lg md:text-xl leading-snug">
+          Memuat pertanyaan...
+        </p>
+      </div>
+    </div>
+  </header>
+
+  <!-- =====================================================================
+       LAYAR AWAL (START SCREEN & PETA 5 LEVEL BERTAHAP)
+       ===================================================================== -->
+  <section id="startScreen" class="fixed inset-0 z-30 flex items-center justify-center p-3 sm:p-5 overflow-y-auto custom-scroll">
+    <div class="glass-panel rounded-3xl w-full max-w-4xl p-5 sm:p-7 my-auto animate-pop-in">
+      <!-- Header Judul Game & Identitas Mapel -->
+      <div class="text-center mb-5">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-100 border-2 border-emerald-300 text-emerald-800 text-xs sm:text-sm font-extrabold mb-2">
+          <span>🌿</span>
+          <span id="displayMapel">Ilmu Pengetahuan Alam dan Sosial (IPAS)</span>
+          <span>•</span>
+          <span id="displayKelas">Kelas 4 SD</span>
+        </div>
+        <h1 class="font-display text-2xl sm:text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-sky-600 to-amber-500 drop-shadow-sm">
+          BIRD HUNTER
+        </h1>
+        <p class="font-display text-base sm:text-xl font-semibold text-amber-600 -mt-1">
+          ✨ PEMBURU TARGET CERDAS ✨
+        </p>
+        <p id="displayMateri" class="text-xs sm:text-sm font-bold text-slate-600 mt-1">
+          Materi: Ekosistem, Pelestarian Satwa & Keseimbangan Alam
+        </p>
+      </div>
+
+      <!-- Grid 2 Kolom: Input Nama + Kontrol Kamera | Peta 5 Level -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+        <!-- Kolom Kiri: Profil Siswa & Kontrol -->
+        <div class="lg:col-span-5 flex flex-col justify-between bg-sky-50/90 rounded-2xl p-4 border-2 border-sky-200 gap-4">
+          <div class="space-y-3">
+            <div>
+              <label for="playerNameInput" class="block font-display text-sm sm:text-base font-bold text-slate-700 mb-1">
+                🧑‍🌾 Nama Penjaga Taman:
+              </label>
+              <input
+                id="playerNameInput"
+                type="text"
+                maxlength="22"
+                placeholder="Ketik namamu di sini..."
+                class="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-sky-300 focus:border-emerald-500 focus:outline-none font-bold text-slate-800 text-sm sm:text-base shadow-inner"
+              />
+            </div>
+
+            <!-- Kontrol Kamera Gesture (Tidak aktif sebelum tombol ditekan) -->
+            <div class="bg-white rounded-xl p-3 border-2 border-slate-200">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="font-display text-xs sm:text-sm font-bold text-slate-700">🖐️ Kontrol Gesture Kamera</span>
+                <span id="startCamStatusBadge" class="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-slate-200 text-slate-700">
+                  Nonaktif
+                </span>
+              </div>
+              <p class="text-xs text-slate-600 leading-relaxed mb-2.5">
+                Gerakkan <b>telunjuk</b> untuk membidik &amp; lakukan <b>pinch (cubit)</b> 🤏 untuk memecahkan balon! Mouse/sentuhan juga selalu aktif.
+              </p>
+              <button id="activateCamBtn" type="button" class="btn-arcade btn-sky w-full py-2 px-3 rounded-xl text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2">
+                <span>📷</span>
+                <span id="activateCamBtnText">Aktifkan Kamera Gesture</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Tombol Mode Guru & Reset Progres -->
+          <div class="flex flex-wrap gap-2 pt-1">
+            <button id="openTeacherModeBtn" type="button" class="btn-arcade btn-purple flex-1 py-2 px-3 rounded-xl text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5">
+              <span>👩‍🏫</span>
+              <span>Mode Guru (Ubah Soal)</span>
+            </button>
+            <button id="resetProgressBtn" type="button" title="Reset Level & Skor" class="btn-arcade py-2 px-3 rounded-xl bg-slate-200 hover:bg-slate-300 border-2 border-slate-300 text-slate-700 font-bold text-xs">
+              🔄 Reset
+            </button>
+          </div>
+        </div>
+
+        <!-- Kolom Kanan: Peta 5 Level Bertahap -->
+        <div class="lg:col-span-7 flex flex-col justify-between bg-emerald-50/90 rounded-2xl p-4 border-2 border-emerald-200">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="font-display text-base sm:text-lg font-bold text-emerald-900">
+                🗺️ Pilih Level Petualangan (5 Level)
+              </h2>
+              <span class="text-xs font-extrabold text-emerald-700 bg-emerald-200/70 px-2.5 py-1 rounded-full">
+                Total Skor: <span id="startTotalScore">0</span>
+              </span>
+            </div>
+
+            <!-- Daftar 5 Level -->
+            <div id="levelMapGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <!-- Diisi dinamis oleh JS -->
+            </div>
+          </div>
+
+          <!-- Tombol Utama Mulai Bermain -->
+          <div class="mt-4 pt-3 border-t-2 border-emerald-200/80 flex flex-col sm:flex-row items-center gap-2.5">
+            <button id="startPlayBtn" type="button" class="btn-arcade btn-green w-full py-3 px-5 rounded-2xl text-white font-bold text-base sm:text-lg flex items-center justify-center gap-2 shadow-lg">
+              <span>🚀</span>
+              <span id="startPlayBtnText">Mulai Petualangan Level 1</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =====================================================================
+       MODAL UMPAN BALIK JAWABAN (BENAR / SALAH RAMAH ANAK)
+       ===================================================================== -->
+  <div id="feedbackModal" class="hidden fixed inset-0 z-40 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-panel rounded-3xl max-w-lg w-full p-5 sm:p-7 text-center animate-pop-in">
+      <div id="feedbackEmoji" class="text-5xl sm:text-6xl mb-2 animate-float">🎉</div>
+      <h3 id="feedbackTitle" class="font-display text-2xl sm:text-3xl font-bold text-emerald-600 mb-1">
+        Hebat Sekali!
+      </h3>
+      <p id="feedbackSubtitle" class="font-extrabold text-sm sm:text-base text-slate-700 mb-3">
+        Jawabanmu benar! +100 Poin!
+      </p>
+
+      <!-- Kotak Penjelasan Ramah Anak -->
+      <div id="feedbackExplanationBox" class="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3.5 sm:p-4 text-left mb-5">
+        <div class="text-xs font-extrabold uppercase tracking-wider text-amber-700 mb-1">
+          💡 Tahukah Kamu?
+        </div>
+        <p id="feedbackExplanationText" class="text-slate-700 font-bold text-xs sm:text-sm leading-relaxed">
+          Penjelasan konsep tampil di sini.
+        </p>
+      </div>
+
+      <button id="nextQuestionBtn" type="button" class="btn-arcade btn-green w-full py-3 px-6 rounded-2xl text-white font-bold text-base sm:text-lg">
+        Lanjut Soal Berikutnya ➡️
+      </button>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL SELESAI LEVEL (ANTAR LEVEL 1-4)
+       ===================================================================== -->
+  <div id="levelCompleteModal" class="hidden fixed inset-0 z-40 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-panel rounded-3xl max-w-lg w-full p-6 sm:p-7 text-center animate-pop-in">
+      <div class="text-5xl sm:text-6xl mb-2">🏅</div>
+      <h3 id="levelCompleteTitle" class="font-display text-2xl sm:text-3xl font-bold text-sky-700 mb-1">
+        Level 1 Selesai!
+      </h3>
+      <p id="levelCompleteMsg" class="font-bold text-slate-600 text-sm sm:text-base mb-4">
+        Luar biasa, Penjaga Taman! Level berikutnya telah terbuka!
+      </p>
+
+      <div class="grid grid-cols-2 gap-3 mb-5">
+        <div class="bg-amber-50 border-2 border-amber-200 rounded-2xl p-3">
+          <div class="text-xs font-extrabold text-amber-700">SKOR LEVEL INI</div>
+          <div id="levelCompleteScore" class="font-display text-2xl font-bold text-amber-600">300</div>
+        </div>
+        <div class="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-3">
+          <div class="text-xs font-extrabold text-emerald-700">TOTAL SKOR</div>
+          <div id="levelCompleteTotalScore" class="font-display text-2xl font-bold text-emerald-600">300</div>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-2.5">
+        <button id="backToMapFromLevelBtn" type="button" class="btn-arcade btn-sky flex-1 py-3 px-4 rounded-2xl text-white font-bold text-sm sm:text-base">
+          🗺️ Peta Level
+        </button>
+        <button id="nextLevelBtn" type="button" class="btn-arcade btn-green flex-1 py-3 px-4 rounded-2xl text-white font-bold text-sm sm:text-base">
+          Level Berikutnya 🚀
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       HALAMAN HASIL AKHIR (FINAL VICTORY & APRESIASI SISWA)
+       ===================================================================== -->
+  <section id="finalResultScreen" class="hidden fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto custom-scroll">
+    <div class="glass-panel rounded-3xl max-w-2xl w-full p-6 sm:p-8 text-center my-auto animate-pop-in border-4 border-amber-300">
+      <div class="text-6xl sm:text-7xl mb-2 animate-float">🏆</div>
+      <div class="inline-block px-3.5 py-1 rounded-full bg-amber-100 border-2 border-amber-300 text-amber-800 font-extrabold text-xs sm:text-sm mb-2">
+        MISI PENJAGA TAMAN BURUNG TUNTAS!
+      </div>
+      <h2 id="finalPraiseTitle" class="font-display text-2xl sm:text-4xl font-bold text-emerald-700 mb-2">
+        Selamat, Siswa Hebat!
+      </h2>
+      <p id="finalPraiseMessage" class="text-slate-700 font-bold text-sm sm:text-base max-w-xl mx-auto mb-5 leading-relaxed">
+        Kamu telah menyelesaikan seluruh tantangan dengan sangat cerdas dan penuh semangat menjaga kelestarian alam!
+      </p>
+
+      <!-- Statistik Akhir -->
+      <div class="grid grid-cols-3 gap-2.5 sm:gap-4 mb-5">
+        <div class="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3">
+          <div class="text-[11px] sm:text-xs font-extrabold text-amber-700">TOTAL SKOR</div>
+          <div id="finalTotalScore" class="font-display text-xl sm:text-3xl font-bold text-amber-600">1500</div>
+          <div class="text-[10px] sm:text-xs font-bold text-slate-500">Maks 1500</div>
+        </div>
+        <div class="bg-sky-50 border-2 border-sky-300 rounded-2xl p-3">
+          <div class="text-[11px] sm:text-xs font-extrabold text-sky-700">JAWABAN BENAR</div>
+          <div id="finalCorrectCount" class="font-display text-xl sm:text-3xl font-bold text-sky-600">15/15</div>
+          <div class="text-[10px] sm:text-xs font-bold text-slate-500">Pertanyaan</div>
+        </div>
+        <div class="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-3">
+          <div class="text-[11px] sm:text-xs font-extrabold text-emerald-700">WAKTU TOTAL</div>
+          <div id="finalTotalTime" class="font-display text-xl sm:text-3xl font-bold text-emerald-600">02:15</div>
+          <div class="text-[10px] sm:text-xs font-bold text-slate-500">Menit:Detik</div>
+        </div>
+      </div>
+
+      <!-- Rincian Skor per Level -->
+      <div id="finalLevelBreakdown" class="grid grid-cols-5 gap-1.5 sm:gap-2 mb-6">
+        <!-- Diisi dinamis oleh JS -->
+      </div>
+
+      <!-- Tombol Ulang Permainan -->
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <button id="replayGameBtn" type="button" class="btn-arcade btn-green py-3.5 px-7 rounded-2xl text-white font-bold text-base sm:text-lg flex items-center justify-center gap-2">
+          <span>🔄</span>
+          <span>Ulang Permainan dari Awal</span>
+        </button>
+        <button id="finalToMapBtn" type="button" class="btn-arcade btn-sky py-3.5 px-6 rounded-2xl text-white font-bold text-base sm:text-lg flex items-center justify-center gap-2">
+          <span>🗺️</span>
+          <span>Kembali ke Peta Level</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- =====================================================================
+       MODAL MODE GURU (KUSTOMISASI MAPEL, MATERI, KELAS & 15 SOAL)
+       ===================================================================== -->
+  <div id="teacherModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+    <div class="glass-panel rounded-3xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-pop-in">
+      <!-- Header Modal Guru -->
+      <div class="px-5 py-4 bg-purple-600 text-white flex items-center justify-between">
+        <div>
+          <h3 class="font-display text-lg sm:text-2xl font-bold">👩‍🏫 Mode Guru – Kustomisasi Pembelajaran</h3>
+          <p class="text-xs text-purple-100">Ubah Mata Pelajaran, Materi, Kelas, dan bank soal secara langsung.</p>
+        </div>
+        <button id="closeTeacherModalBtn" type="button" class="w-9 h-9 rounded-xl bg-white/20 hover:bg-white/30 font-bold text-lg">✕</button>
+      </div>
+
+      <!-- Isi Form Kustomisasi -->
+      <div class="p-4 sm:p-6 overflow-y-auto custom-scroll space-y-5">
+        <!-- Identitas Mapel -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-purple-50 p-3.5 rounded-2xl border-2 border-purple-200">
+          <div>
+            <label class="block text-xs font-extrabold text-purple-900 mb-1">Mata Pelajaran</label>
+            <input id="editMapelInput" type="text" class="w-full px-3 py-2 rounded-xl border-2 border-purple-200 text-sm font-bold text-slate-800" />
+          </div>
+          <div>
+            <label class="block text-xs font-extrabold text-purple-900 mb-1">Materi Pembelajaran</label>
+            <input id="editMateriInput" type="text" class="w-full px-3 py-2 rounded-xl border-2 border-purple-200 text-sm font-bold text-slate-800" />
+          </div>
+          <div>
+            <label class="block text-xs font-extrabold text-purple-900 mb-1">Kelas</label>
+            <input id="editKelasInput" type="text" class="w-full px-3 py-2 rounded-xl border-2 border-purple-200 text-sm font-bold text-slate-800" />
+          </div>
+        </div>
+
+        <!-- Selector Level untuk Edit Soal -->
+        <div>
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <label class="font-display text-base font-bold text-slate-800">Edit Soal per Level:</label>
+            <div id="teacherLevelTabs" class="flex flex-wrap gap-1.5">
+              <!-- Tab Level 1-5 -->
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="block text-xs font-extrabold text-slate-600 mb-1">Judul Tema Level</label>
+            <input id="editLevelThemeInput" type="text" class="w-full px-3 py-2 rounded-xl border-2 border-slate-200 text-sm font-bold text-slate-800" />
+          </div>
+
+          <!-- Daftar 3 Soal (LOTS, MOTS, HOTS) pada level terpilih -->
+          <div id="teacherQuestionsContainer" class="space-y-4">
+            <!-- Diisi dinamis -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Tombol Simpan / Reset -->
+      <div class="px-5 py-3.5 bg-slate-100 border-t-2 border-slate-200 flex flex-wrap items-center justify-between gap-2">
+        <button id="resetDefaultDataBtn" type="button" class="btn-arcade px-4 py-2 rounded-xl bg-rose-100 hover:bg-rose-200 border-2 border-rose-300 text-rose-800 font-bold text-xs sm:text-sm">
+          ♻️ Kembalikan Soal Default IPAS
+        </button>
+        <div class="flex gap-2">
+          <button id="cancelTeacherBtn" type="button" class="btn-arcade px-4 py-2 rounded-xl bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm">
+            Batal
+          </button>
+          <button id="saveTeacherDataBtn" type="button" class="btn-arcade btn-green px-5 py-2 rounded-xl text-white font-bold text-xs sm:text-sm">
+            💾 Simpan Perubahan
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       LOGIKA LENGKAP GAME, MEDIA PIPE HANDS, AUDIO & RENDERING CANVAS
+       ===================================================================== -->
+  <script>
+    /*************************************************************************
+     * 1. KONFIGURASI IDENTITAS & BANK SOAL DEFAULT (MUDAH DIEDIT GURU)
+     *    - 5 Level bertahap
+     *    - Setiap level berisi 3 soal: Soal 1 (LOTS), Soal 2 (MOTS), Soal 3 (HOTS)
+     *************************************************************************/
+    const DEFAULT_GAME_DATA = {
+      meta: {
+        mataPelajaran: "Ilmu Pengetahuan Alam dan Sosial (IPAS)",
+        materi: "Ekosistem, Pelestarian Satwa & Keseimbangan Alam",
+        kelas: "Kelas 4 SD"
+      },
+      levels: [
+        {
+          id: 1,
+          title: "Taman Burung Ceria",
+          subtitle: "Habitat & Interaksi Makhluk Hidup",
+          skyTop: "#38bdf8",
+          skyBottom: "#bae6fd",
+          questions: [
+            {
+              type: "LOTS",
+              question: "Setiap pagi, Rani melihat burung pipit hinggap di dahan pohon mangga halaman rumahnya untuk membuat sarang. Tempat tinggal alami makhluk hidup seperti pohon bagi burung disebut...",
+              options: ["Habitat", "Populasi", "Polusi", "Migrasi"],
+              correctIndex: 0,
+              explanation: "Habitat adalah tempat tinggal alami makhluk hidup untuk berlindung, mencari makan, dan berkembang biak, seperti pohon mangga bagi burung pipit."
+            },
+            {
+              type: "MOTS",
+              question: "Di taman sekolah, kupu-kupu dan burung madu menghisap nektar bunga sekaligus membantu bunga melakukan penyerbukan. Hubungan saling menguntungkan ini disebut simbiosis...",
+              options: ["Mutualisme", "Parasitisme", "Komensalisme", "Kompetisi"],
+              correctIndex: 0,
+              explanation: "Simbiosis mutualisme adalah hubungan dua makhluk hidup yang saling menguntungkan: burung mendapat nektar manis, sedangkan bunga terbantu penyerbukannya!"
+            },
+            {
+              type: "HOTS",
+              question: "Warga berencana menebang semua pohon tua di pinggir sungai untuk lahan parkir. Dampak paling tepat yang akan terjadi pada burung-burung di sekitar sungai adalah...",
+              options: [
+                "Burung kehilangan tempat bersarang dan makanan",
+                "Jumlah ikan di sungai menjadi semakin melimpah",
+                "Udara di sekitar sungai terasa jauh lebih sejuk",
+                "Burung berubah memakan batu kerikil di sungai"
+              ],
+              correctIndex: 0,
+              explanation: "Pohon adalah rumah dan sumber makanan bagi burung. Jika semua pohon ditebang, burung kehilangan habitatnya dan keseimbangan alam terganggu."
+            }
+          ]
+        },
+        {
+          id: 2,
+          title: "Hutan Sahabat Tani",
+          subtitle: "Rantai Makanan di Sekitar Kita",
+          skyTop: "#0ea5e9",
+          skyBottom: "#a7f3d0",
+          questions: [
+            {
+              type: "LOTS",
+              question: "Dalam rantai makanan di sawah: Padi → Belalang → Katak → Ular → Burung Elang. Peran tumbuhan padi dalam rantai makanan tersebut adalah sebagai...",
+              options: ["Produsen", "Konsumen puncak", "Pengurai", "Pemangsa"],
+              correctIndex: 0,
+              explanation: "Tumbuhan hijau seperti padi dapat membuat makanannya sendiri dengan bantuan sinar matahari (fotosintesis), sehingga disebut produsen."
+            },
+            {
+              type: "MOTS",
+              question: "Pak Tani senang karena di sawahnya tinggal burung hantu yang aktif berburu tikus pada malam hari. Keberadaan burung hantu membantu petani karena...",
+              options: [
+                "Mengendalikan hama tikus secara alami",
+                "Menyuburkan tanah sawah dengan bulunya",
+                "Mengusir kupu-kupu yang hinggap di bunga",
+                "Membantu mengairi sawah saat kemarau"
+              ],
+              correctIndex: 0,
+              explanation: "Burung hantu adalah pemangsa alami tikus sawah. Dengan adanya burung hantu, jumlah tikus berkurang tanpa perlu racun berbahaya!"
+            },
+            {
+              type: "HOTS",
+              question: "Akibat perburuan liar, jumlah burung pemakan ulat di kebun sayur berkurang drastis. Jika dibiarkan terus-menerus, prediksi paling masuk akal bagi kebun sayur adalah...",
+              options: [
+                "Ulat berkembang pesat dan merusak daun sayur",
+                "Sayuran tumbuh lebih subur tanpa ada ulat",
+                "Tanah kebun berubah menjadi sangat tandus",
+                "Jumlah ulat ikut menghilang bersama burung"
+              ],
+              correctIndex: 0,
+              explanation: "Tanpa burung sebagai pemangsa, populasi ulat akan melonjak tak terkendali dan memakan habis daun-daun sayuran di kebun."
+            }
+          ]
+        },
+        {
+          id: 3,
+          title: "Langit Biru Tanpa Sampah",
+          subtitle: "Menjaga Kebersihan Lingkungan",
+          skyTop: "#0284c7",
+          skyBottom: "#fef08a",
+          questions: [
+            {
+              type: "LOTS",
+              question: "Saat piknik di taman, Beni melihat botol plastik dan sedotan berserakan di rumput. Sampah plastik berbahaya bagi lingkungan karena sifatnya yang...",
+              options: [
+                "Sangat sulit terurai oleh tanah",
+                "Mudah larut terkena air hujan",
+                "Cepat berubah menjadi pupuk kompos",
+                "Menjadi makanan sehat bagi burung"
+              ],
+              correctIndex: 0,
+              explanation: "Sampah plastik membutuhkan waktu puluhan hingga ratusan tahun untuk terurai, sehingga dapat mencemari tanah dan membahayakan hewan."
+            },
+            {
+              type: "MOTS",
+              question: "Di pantai, burung camar sering salah mengira tutup botol plastik warna-warni sebagai ikan kecil lalu memakannya. Tindakan kita di rumah untuk mencegahnya adalah...",
+              options: [
+                "Mengurangi plastik sekali pakai & pilah sampah",
+                "Membuang sampah plastik ke selokan saat hujan",
+                "Membakar semua sampah plastik di halaman",
+                "Mewarnai plastik agar terlihat seperti batu"
+              ],
+              correctIndex: 0,
+              explanation: "Dengan mengurangi penggunaan plastik sekali pakai dan membuang sampah terpilah pada tempatnya, sampah tidak akan hanyut ke sungai dan laut."
+            },
+            {
+              type: "HOTS",
+              question: "Sungai dekat permukiman berubah keruh dan berbau akibat limbah deterjen sehingga ikan kecil mati. Mengapa burung bangau yang mencari makan di sungai ikut terancam?",
+              options: [
+                "Sumber makanan utama bangau di sungai hilang",
+                "Burung bangau tidak suka warna air yang keruh",
+                "Air keruh membuat bulu sayap bangau berat",
+                "Ikan kecil berubah menjadi pemangsa bangau"
+              ],
+              correctIndex: 0,
+              explanation: "Burung bangau memakan ikan-ikan kecil di sungai. Jika sungai tercemar dan ikan mati, burung bangau kehilangan sumber makanannya."
+            }
+          ]
+        },
+        {
+          id: 4,
+          title: "Pelindung Satwa Langka",
+          subtitle: "Pelestarian Hewan Indonesia",
+          skyTop: "#2563eb",
+          skyBottom: "#fbcfe8",
+          questions: [
+            {
+              type: "LOTS",
+              question: "Burung Cenderawasih dari Papua dan Jalak Bali termasuk satwa langka Indonesia yang dilindungi. Arti dari satwa langka adalah hewan yang...",
+              options: [
+                "Jumlahnya sedikit dan terancam punah",
+                "Mudah ditemukan di setiap halaman rumah",
+                "Boleh dipelihara bebas di dalam sangkar",
+                "Hidup di semua negara di seluruh dunia"
+              ],
+              correctIndex: 0,
+              explanation: "Satwa langka adalah hewan yang populasinya di alam sudah sangat sedikit sehingga wajib dilindungi agar tidak punah."
+            },
+            {
+              type: "MOTS",
+              question: "Saat berkunjung ke taman satwa bersama keluarga, Dika melihat papan bertuliskan 'Dilarang Memberi Makan Satwa Sembarangan'. Tujuan aturan tersebut adalah...",
+              options: [
+                "Menjaga kesehatan hewan agar tidak sakit",
+                "Menghemat uang saku para pengunjung",
+                "Agar hewan tidak menjadi terlalu gemuk",
+                "Supaya petugas tidak membersihkan kandang"
+              ],
+              correctIndex: 0,
+              explanation: "Makanan ringan manusia seperti keripik atau permen bisa membuat satwa sakit pencernaan karena kebutuhan gizi setiap hewan berbeda."
+            },
+            {
+              type: "HOTS",
+              question: "Di pasar hewan, seseorang menawarkan anak burung elang langka dengan harga murah untuk dipelihara. Sikap terbaik dan paling bijak yang seharusnya dilakukan adalah...",
+              options: [
+                "Menolak membeli dan melapor petugas BKSDA",
+                "Membelinya agar bisa dipamerkan ke teman",
+                "Membelinya lalu dikurung di kamar gelap",
+                "Meminta pedagang menangkap lebih banyak"
+              ],
+              correctIndex: 0,
+              explanation: "Memperjualbelikan satwa langka dilindungi melanggar hukum dan mempercepat kepunahan. Melapor ke petugas membantu menyelamatkan satwa."
+            }
+          ]
+        },
+        {
+          id: 5,
+          title: "Penjaga Taman Cerdas",
+          subtitle: "Aksi Nyata Keseimbangan Alam",
+          skyTop: "#1d4ed8",
+          skyBottom: "#fde68a",
+          questions: [
+            {
+              type: "LOTS",
+              question: "Kegiatan menanam kembali hutan atau lahan yang gundul agar kembali hijau dan menjadi rumah bagi burung-burung disebut...",
+              options: ["Reboisasi", "Erosi", "Urbanisasi", "Irigasi"],
+              correctIndex: 0,
+              explanation: "Reboisasi adalah penanaman kembali hutan yang gundul untuk memulihkan ekosistem, mencegah banjir, dan menyediakan habitat bagi satwa."
+            },
+            {
+              type: "MOTS",
+              question: "Sekolah Siti membuat program 'Taman Ramah Burung'. Agar banyak burung datang berkunjung dengan aman, tanaman yang paling tepat ditanam siswa adalah...",
+              options: [
+                "Pohon berbuah kecil dan tanaman berbunga",
+                "Tanaman plastik warna-warni di dalam pot",
+                "Rumput sintetis di seluruh halaman sekolah",
+                "Pagar kawat berduri di setiap dahan pohon"
+              ],
+              correctIndex: 0,
+              explanation: "Pohon berbuah dan tanaman berbunga menyediakan makanan alami (buah, biji, nektar, dan serangga kecil) yang disukai burung."
+            },
+            {
+              type: "HOTS",
+              question: "Saat bermain di taman, kamu melihat anak burung kecil jatuh dari sarang di dahan rendah, sementara induknya terbang gelisah di atasnya. Langkah paling tepat adalah...",
+              options: [
+                "Mengembalikan perlahan ke sarang/dahan aman",
+                "Membawanya pulang untuk dimasukkan kandang",
+                "Melempari induk burung agar terbang menjauh",
+                "Membiarkannya di jalan setapak yang ramai"
+              ],
+              correctIndex: 0,
+              explanation: "Induk burung tetap mau merawat anaknya jika dikembalikan dengan hati-hati ke sarang atau dahan terdekat yang aman dari gangguan."
+            }
+          ]
+        }
+      ]
+    };
+
+    const STORAGE_KEY_DATA = "bird_hunter_game_data_v1";
+    const STORAGE_KEY_PROGRESS = "bird_hunter_progress_v1";
+
+    /*************************************************************************
+     * 2. AUDIO ENGINE (WEB AUDIO API - TANPA FILE EKSTERNAL)
+     *************************************************************************/
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === "suspended") {
+          this.ctx.resume();
+        }
+      }
+
+      toggleMute() {
+        this.muted = !this.muted;
+        return this.muted;
+      }
+
+      playHover() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(680, now + 0.05);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.06);
+      }
+
+      playPop() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+
+        // Suara letupan balon (noise + pitch drop)
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(340, now);
+        osc.frequency.exponentialRampToValueAtTime(65, now + 0.14);
+        gain.gain.setValueAtTime(0.32, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.15);
+
+        // Kilau partikel tinggi
+        const chime = this.ctx.createOscillator();
+        const chimeGain = this.ctx.createGain();
+        chime.type = "sine";
+        chime.frequency.setValueAtTime(880, now + 0.03);
+        chime.frequency.exponentialRampToValueAtTime(1320, now + 0.16);
+        chimeGain.gain.setValueAtTime(0.14, now + 0.03);
+        chimeGain.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+        chime.connect(chimeGain);
+        chimeGain.connect(this.ctx.destination);
+        chime.start(now + 0.03);
+        chime.stop(now + 0.17);
+      }
+
+      playCorrect() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 - E5 - G5 - C6
+        notes.forEach((freq, idx) => {
+          const now = this.ctx.currentTime + idx * 0.09;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(freq, now);
+          gain.gain.setValueAtTime(0.22, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.29);
+        });
+      }
+
+      playWrong() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        const notes = [330, 277.18]; // Nada lembut ramah anak
+        notes.forEach((freq, idx) => {
+          const now = this.ctx.currentTime + idx * 0.16;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(freq, now);
+          osc.frequency.linearRampToValueAtTime(freq - 25, now + 0.18);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.23);
+        });
+      }
+
+      playVictory() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        const melody = [523.25, 523.25, 659.25, 783.99, 659.25, 1046.5];
+        const times = [0, 0.12, 0.24, 0.36, 0.52, 0.68];
+        melody.forEach((freq, idx) => {
+          const now = this.ctx.currentTime + times[idx];
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(freq, now);
+          gain.gain.setValueAtTime(0.24, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.36);
+        });
+      }
+    }
+
+    const sound = new SoundEngine();
+
+    /*************************************************************************
+     * 3. STATE MANAJEMEN GAME & PENYIMPANAN LOKAL
+     *************************************************************************/
+    let gameData = loadGameData();
+    let progress = loadProgress();
+
+    const state = {
+      screen: "start", // 'start' | 'playing' | 'feedback' | 'levelComplete' | 'final'
+      playerName: progress.playerName || "",
+      currentLevelIdx: 0, // 0..4
+      currentQuestionIdx: 0, // 0..2
+      levelScore: 0,
+      levelCorrect: 0,
+      totalScore: 0,
+      totalCorrect: 0,
+      elapsedSeconds: 0,
+      timerInterval: null,
+      canShoot: true,
+      modalOpenedAt: 0,
+
+      // Retikel & Input (Mouse / Touch / Hand Gesture)
+      reticle: {
+        x: window.innerWidth * 0.5,
+        y: window.innerHeight * 0.55,
+        targetX: window.innerWidth * 0.5,
+        targetY: window.innerHeight * 0.55,
+        pinchCharge: 0, // 0..1
+        isPinching: false,
+        lastShotTime: 0,
+        hoveredBalloonIdx: -1
+      },
+
+      // Kamera & MediaPipe Hands
+      cameraActive: false,
+      cameraLoading: false,
+      handsDetector: null,
+      mediaStream: null,
+      handDetected: false,
+
+      // Objek Visual Kanvas
+      balloons: [],
+      birds: [],
+      clouds: [],
+      particles: [],
+      floatingTexts: [],
+      celebrationMode: 0
+    };
+
+    function loadGameData() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_DATA);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.meta && Array.isArray(parsed.levels) && parsed.levels.length === 5) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        console.warn("Gagal membaca data kustom:", e);
+      }
+      return JSON.parse(JSON.stringify(DEFAULT_GAME_DATA));
+    }
+
+    function saveGameData() {
+      try {
+        localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(gameData));
+      } catch (e) {
+        console.warn("Gagal menyimpan data kustom:", e);
+      }
+    }
+
+    function loadProgress() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_PROGRESS);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return {
+            playerName: parsed.playerName || "",
+            unlockedLevel: Math.min(5, Math.max(1, parsed.unlockedLevel || 1)),
+            levelScores: Array.isArray(parsed.levelScores) && parsed.levelScores.length === 5
+              ? parsed.levelScores
+              : [0, 0, 0, 0, 0],
+            levelCorrects: Array.isArray(parsed.levelCorrects) && parsed.levelCorrects.length === 5
+              ? parsed.levelCorrects
+              : [0, 0, 0, 0, 0]
+          };
+        }
+      } catch (e) {
+        console.warn("Gagal membaca progres:", e);
+      }
+      return {
+        playerName: "",
+        unlockedLevel: 1,
+        levelScores: [0, 0, 0, 0, 0],
+        levelCorrects: [0, 0, 0, 0, 0]
+      };
+    }
+
+    function saveProgress() {
+      try {
+        progress.playerName = state.playerName;
+        localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
+      } catch (e) {
+        console.warn("Gagal menyimpan progres:", e);
+      }
+    }
+
+    function showToast(message, type = "info") {
+      const container = document.getElementById("toastContainer");
+      const toast = document.createElement("div");
+      const colors = {
+        info: "bg-sky-600 text-white border-sky-300",
+        success: "bg-emerald-600 text-white border-emerald-300",
+        warning: "bg-amber-500 text-white border-amber-200",
+        error: "bg-rose-600 text-white border-rose-300"
+      };
+      toast.className = `px-4 py-2.5 rounded-2xl border-2 shadow-xl font-bold text-xs sm:text-sm text-center animate-pop-in ${colors[type] || colors.info}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = "0";
+        toast.style.transform = "translateY(-8px)";
+        toast.style.transition = "all 0.25s ease";
+        setTimeout(() => toast.remove(), 260);
+      }, 3200);
+    }
+
+    /*************************************************************************
+     * 4. INISIALISASI KANVAS & ELEMEN DUNIA TAMAN BURUNG FANTASI
+     *************************************************************************/
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    function resizeCanvas() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      updateBalloonAnchors();
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+
+    // Palet warna 4 balon target (A, B, C, D)
+    const BALLOON_THEMES = [
+      { label: "A", top: "#ff758c", bottom: "#ff4b6e", rim: "#ffe4e6", string: "#be123c" },
+      { label: "B", top: "#38bdf8", bottom: "#0284c7", rim: "#e0f2fe", string: "#0369a1" },
+      { label: "C", top: "#4ade80", bottom: "#16a34a", rim: "#dcfce7", string: "#15803d" },
+      { label: "D", top: "#c084fc", bottom: "#7c3aed", rim: "#f3e8ff", string: "#5b21b6" }
+    ];
+
+    function initScenery() {
+      // Awan lembut bergerak
+      state.clouds = [];
+      for (let i = 0; i < 6; i++) {
+        state.clouds.push({
+          x: Math.random() * width,
+          y: 45 + Math.random() * (height * 0.28),
+          scale: 0.65 + Math.random() * 0.65,
+          speed: 10 + Math.random() * 14
+        });
+      }
+
+      // Burung-burung kartun lucu yang mengepakkan sayap di taman
+      const birdPalettes = [
+        { body: "#38bdf8", belly: "#e0f2fe", wing: "#0284c7", beak: "#f59e0b" }, // Burung Biru
+        { body: "#facc15", belly: "#fef9c3", wing: "#eab308", beak: "#f97316" }, // Kenari Kuning
+        { body: "#fb7185", belly: "#ffe4e6", wing: "#e11d48", beak: "#fbbf24" }, // Robin Merah Muda
+        { body: "#a78bfa", belly: "#ede9fe", wing: "#7c3aed", beak: "#f59e0b" }, // Nuri Ungu
+        { body: "#34d399", belly: "#d1fae5", wing: "#059669", beak: "#fb923c" }  // Parkit Hijau
+      ];
+
+      state.birds = [];
+      for (let i = 0; i < 6; i++) {
+        const pal = birdPalettes[i % birdPalettes.length];
+        const dir = i % 2 === 0 ? 1 : -1;
+        state.birds.push({
+          x: Math.random() * width,
+          y: height * (0.18 + Math.random() * 0.45),
+          vx: (45 + Math.random() * 40) * dir,
+          baseY: height * (0.18 + Math.random() * 0.45),
+          bobAmp: 12 + Math.random() * 16,
+          bobFreq: 1.8 + Math.random() * 1.4,
+          phase: Math.random() * Math.PI * 2,
+          scale: 0.72 + Math.random() * 0.35,
+          palette: pal
+        });
+      }
+    }
+
+    /*************************************************************************
+     * 5. SISTEM BALON TARGET JAWABAN (ANTI TUMPUK & RESPONSIF)
+     *************************************************************************/
+    function spawnBalloonsForCurrentQuestion() {
+      const level = gameData.levels[state.currentLevelIdx];
+      const q = level.questions[state.currentQuestionIdx];
+      state.balloons = [];
+
+      q.options.forEach((optText, idx) => {
+        const theme = BALLOON_THEMES[idx];
+        state.balloons.push({
+          index: idx,
+          letter: theme.label,
+          text: optText,
+          theme: theme,
+          x: width * 0.5,
+          y: height + 140,
+          anchorX: width * 0.5,
+          anchorY: height * 0.6,
+          rx: 115,
+          ry: 86,
+          phase: idx * 1.55,
+          popped: false,
+          scale: 0.2,
+          hoverScale: 1
+        });
+      });
+
+      updateBalloonAnchors();
+    }
+
+    function updateBalloonAnchors() {
+      if (!state.balloons.length) return;
+      const isPortrait = width < 720;
+
+      // Area aman di bawah HUD & Kartu Soal (sekitar 33% dari atas hingga 86% dari atas)
+      const topSafe = Math.max(185, height * 0.34);
+      const bottomSafe = height - 48;
+      const usableHeight = Math.max(220, bottomSafe - topSafe);
+
+      if (isPortrait) {
+        // Tata letak 2x2 rapi pada layar ponsel/tablet vertikal
+        const rx = Math.min(width * 0.22, 118);
+        const ry = Math.min(usableHeight * 0.21, 78);
+        const cols = [width * 0.27, width * 0.73];
+        const rows = [topSafe + usableHeight * 0.27, topSafe + usableHeight * 0.74];
+
+        state.balloons.forEach((b, i) => {
+          const col = i % 2;
+          const row = Math.floor(i / 2);
+          b.anchorX = cols[col];
+          b.anchorY = rows[row];
+          b.rx = rx;
+          b.ry = ry;
+        });
+      } else {
+        // Tata letak 4 kolom berirama pada layar laptop/desktop/proyektor kelas
+        const rx = Math.min(width * 0.105, 132);
+        const ry = Math.min(usableHeight * 0.28, 92);
+        const xs = [width * 0.14, width * 0.38, width * 0.62, width * 0.86];
+        const ys = [
+          topSafe + usableHeight * 0.36,
+          topSafe + usableHeight * 0.64,
+          topSafe + usableHeight * 0.36,
+          topSafe + usableHeight * 0.64
+        ];
+
+        state.balloons.forEach((b, i) => {
+          b.anchorX = xs[i];
+          b.anchorY = ys[i];
+          b.rx = rx;
+          b.ry = ry;
+        });
+      }
+    }
+
+    function spawnPopParticles(x, y, theme) {
+      const colors = [theme.top, theme.bottom, "#fde047", "#ffffff", "#34d399", "#38bdf8"];
+      for (let i = 0; i < 42; i++) {
+        const angle = (Math.PI * 2 * i) / 42 + (Math.random() - 0.5) * 0.3;
+        const speed = 120 + Math.random() * 290;
+        state.particles.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 60,
+          size: 5 + Math.random() * 7,
+          color: colors[i % colors.length],
+          alpha: 1,
+          rotation: Math.random() * Math.PI * 2,
+          vRot: (Math.random() - 0.5) * 10,
+          shape: i % 3 === 0 ? "star" : "confetti"
+        });
+      }
+      // Gelombang kejut lingkaran
+      state.particles.push({
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        size: 16,
+        maxRadius: 135,
+        color: "#ffffff",
+        alpha: 0.9,
+        shape: "ring"
+      });
+    }
+
+    function spawnFloatingText(x, y, text, color = "#16a34a") {
+      state.floatingTexts.push({
+        x,
+        y,
+        text,
+        color,
+        alpha: 1,
+        vy: -75
+      });
+    }
+
+    /*************************************************************************
+     * 6. LOGIKA PERMAINAN (MULAI, JAWABAN, SKOR, TIMER, LEVEL)
+     *************************************************************************/
+    function startTimer() {
+      stopTimer();
+      state.timerInterval = setInterval(() => {
+        if (state.screen === "playing") {
+          state.elapsedSeconds++;
+          updateHudDisplay();
+        }
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (state.timerInterval) {
+        clearInterval(state.timerInterval);
+        state.timerInterval = null;
+      }
+    }
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60).toString().padStart(2, "0");
+      const s = (sec % 60).toString().padStart(2, "0");
+      return `${m}:${s}`;
+    }
+
+    function startLevel(levelIdx) {
+      sound.init();
+      const inputName = document.getElementById("playerNameInput").value.trim();
+      state.playerName = inputName || state.playerName || "Penjaga Cilik";
+      saveProgress();
+
+      state.currentLevelIdx = levelIdx;
+      state.currentQuestionIdx = 0;
+      state.levelScore = 0;
+      state.levelCorrect = 0;
+      state.canShoot = true;
+      state.screen = "playing";
+
+      if (levelIdx === 0 && state.totalScore === 0) {
+        state.elapsedSeconds = 0;
+      }
+
+      document.getElementById("startScreen").classList.add("hidden");
+      document.getElementById("finalResultScreen").classList.add("hidden");
+      document.getElementById("levelCompleteModal").classList.add("hidden");
+      document.getElementById("feedbackModal").classList.add("hidden");
+      document.getElementById("gameHud").classList.remove("hidden");
+
+      loadCurrentQuestion();
+      startTimer();
+    }
+
+    function loadCurrentQuestion() {
+      const level = gameData.levels[state.currentLevelIdx];
+      const q = level.questions[state.currentQuestionIdx];
+
+      document.getElementById("hudLevelTitle").textContent = `Level ${level.id}: ${level.title}`;
+      document.getElementById("questionText").textContent = q.question;
+      document.getElementById("hudCogLevel").textContent = q.type;
+
+      // Warna badge LOTS / MOTS / HOTS
+      const badge = document.getElementById("hudCogLevel");
+      if (q.type === "LOTS") badge.className = "ml-1 px-1.5 py-0.5 text-[10px] rounded-md bg-emerald-600 text-white";
+      else if (q.type === "MOTS") badge.className = "ml-1 px-1.5 py-0.5 text-[10px] rounded-md bg-amber-500 text-white";
+      else badge.className = "ml-1 px-1.5 py-0.5 text-[10px] rounded-md bg-rose-600 text-white";
+
+      state.canShoot = true;
+      spawnBalloonsForCurrentQuestion();
+      updateHudDisplay();
+    }
+
+    function updateHudDisplay() {
+      document.getElementById("hudPlayerName").textContent = state.playerName;
+      document.getElementById("hudLevel").textContent = state.currentLevelIdx + 1;
+      document.getElementById("hudQuestionNum").textContent = state.currentQuestionIdx + 1;
+
+      // Hitung total skor real-time dari progres level lain + level berjalan
+      const otherLevelsScore = progress.levelScores.reduce((acc, val, idx) => {
+        return idx === state.currentLevelIdx ? acc : acc + val;
+      }, 0);
+      const liveTotal = otherLevelsScore + state.levelScore;
+
+      document.getElementById("hudScore").textContent = liveTotal;
+      document.getElementById("hudTimer").textContent = formatTime(state.elapsedSeconds);
+    }
+
+    function triggerShootAtReticle() {
+      const now = performance.now();
+      if (now - state.reticle.lastShotTime < 550) return;
+
+      // Jika modal feedback terbuka dan sudah > 1.1 detik, pinch juga bisa menekan "Lanjut"
+      if (state.screen === "feedback" && now - state.modalOpenedAt > 1100) {
+        state.reticle.lastShotTime = now;
+        advanceAfterFeedback();
+        return;
+      }
+
+      if (state.screen !== "playing" || !state.canShoot) return;
+
+      // Cari balon yang berada di bawah retikel
+      const hitIdx = findBalloonUnderPoint(state.reticle.x, state.reticle.y);
+      if (hitIdx === -1) return;
+
+      state.reticle.lastShotTime = now;
+      handleBalloonPop(hitIdx);
+    }
+
+    function findBalloonUnderPoint(px, py) {
+      for (let i = state.balloons.length - 1; i >= 0; i--) {
+        const b = state.balloons[i];
+        if (b.popped) continue;
+        // Persamaan elips dengan toleransi ramah anak (+14px)
+        const dx = (px - b.x) / (b.rx * b.hoverScale + 14);
+        const dy = (py - b.y) / (b.ry * b.hoverScale + 14);
+        if (dx * dx + dy * dy <= 1) {
+          return i;
+        }
+      }
+      return -1;
+    }
+
+    function handleBalloonPop(balloonIdx) {
+      const b = state.balloons[balloonIdx];
+      if (!b || b.popped) return;
+
+      state.canShoot = false;
+      b.popped = true;
+      sound.playPop();
+      spawnPopParticles(b.x, b.y, b.theme);
+
+      const level = gameData.levels[state.currentLevelIdx];
+      const q = level.questions[state.currentQuestionIdx];
+      const isCorrect = balloonIdx === q.correctIndex;
+
+      if (isCorrect) {
+        state.levelScore += 100;
+        state.levelCorrect += 1;
+        state.celebrationMode = 2.5;
+        sound.playCorrect();
+        spawnFloatingText(b.x, b.y - 20, "+100 POIN! 🌟", "#16a34a");
+      } else {
+        sound.playWrong();
+        spawnFloatingText(b.x, b.y - 20, "Belum Tepat 💡", "#e11d48");
+      }
+
+      updateHudDisplay();
+
+      // Tampilkan kartu umpan balik ramah anak setelah jeda animasi letupan 420ms
+      setTimeout(() => {
+        showFeedbackModal(isCorrect, q, balloonIdx);
+      }, 420);
+    }
+
+    function showFeedbackModal(isCorrect, q, chosenIdx) {
+      state.screen = "feedback";
+      state.modalOpenedAt = performance.now();
+
+      const modal = document.getElementById("feedbackModal");
+      const emoji = document.getElementById("feedbackEmoji");
+      const title = document.getElementById("feedbackTitle");
+      const subtitle = document.getElementById("feedbackSubtitle");
+      const expText = document.getElementById("feedbackExplanationText");
+      const nextBtn = document.getElementById("nextQuestionBtn");
+
+      const correctOptionLetter = BALLOON_THEMES[q.correctIndex].label;
+      const correctOptionText = q.options[q.correctIndex];
+
+      if (isCorrect) {
+        emoji.textContent = "🎉";
+        title.textContent = `Hebat Sekali, ${state.playerName}!`;
+        title.className = "font-display text-2xl sm:text-3xl font-bold text-emerald-600 mb-1";
+        subtitle.textContent = `Jawabanmu (${correctOptionLetter}. ${correctOptionText}) tepat! +100 Poin!`;
+        expText.textContent = q.explanation;
+      } else {
+        const chosenLetter = BALLOON_THEMES[chosenIdx].label;
+        emoji.textContent = "🦉";
+        title.textContent = `Tetap Semangat, ${state.playerName}!`;
+        title.className = "font-display text-2xl sm:text-3xl font-bold text-amber-600 mb-1";
+        subtitle.textContent = `Pilihan ${chosenLetter} belum tepat. Jawaban yang benar adalah ${correctOptionLetter}. ${correctOptionText}.`;
+        expText.textContent = q.explanation;
+      }
+
+      const isLastQuestion = state.currentQuestionIdx >= gameData.levels[state.currentLevelIdx].questions.length - 1;
+      nextBtn.textContent = isLastQuestion ? "Lihat Hasil Level 🏅" : "Lanjut Soal Berikutnya ➡️";
+
+      modal.classList.remove("hidden");
+    }
+
+    function advanceAfterFeedback() {
+      document.getElementById("feedbackModal").classList.add("hidden");
+
+      const level = gameData.levels[state.currentLevelIdx];
+      if (state.currentQuestionIdx + 1 < level.questions.length) {
+        state.currentQuestionIdx += 1;
+        state.screen = "playing";
+        loadCurrentQuestion();
+      } else {
+        finishCurrentLevel();
+      }
+    }
+
+    function finishCurrentLevel() {
+      // Simpan skor terbaik untuk level ini & buka level berikutnya
+      if (state.levelScore >= progress.levelScores[state.currentLevelIdx]) {
+        progress.levelScores[state.currentLevelIdx] = state.levelScore;
+        progress.levelCorrects[state.currentLevelIdx] = state.levelCorrect;
+      }
+
+      if (state.currentLevelIdx + 1 >= progress.unlockedLevel && progress.unlockedLevel < 5) {
+        progress.unlockedLevel = state.currentLevelIdx + 2;
+      }
+      saveProgress();
+
+      const totalScore = progress.levelScores.reduce((a, b) => a + b, 0);
+      const totalCorrect = progress.levelCorrects.reduce((a, b) => a + b, 0);
+      state.totalScore = totalScore;
+      state.totalCorrect = totalCorrect;
+
+      // Jika selesai Level 5, tampilkan Halaman Hasil Akhir!
+      if (state.currentLevelIdx === 4) {
+        stopTimer();
+        showFinalResultsScreen();
+        return;
+      }
+
+      // Jika Level 1-4, tampilkan Modal Selesai Level
+      state.screen = "levelComplete";
+      sound.playVictory();
+      state.celebrationMode = 3.5;
+
+      const lvlNum = state.currentLevelIdx + 1;
+      document.getElementById("levelCompleteTitle").textContent = `Level ${lvlNum} Selesai!`;
+      document.getElementById("levelCompleteMsg").textContent =
+        `Keren sekali, ${state.playerName}! Level ${lvlNum + 1} (${gameData.levels[lvlNum].title}) sekarang sudah terbuka!`;
+      document.getElementById("levelCompleteScore").textContent = `${state.levelScore} / 300`;
+      document.getElementById("levelCompleteTotalScore").textContent = totalScore;
+
+      document.getElementById("levelCompleteModal").classList.remove("hidden");
+    }
+
+    function showFinalResultsScreen() {
+      state.screen = "final";
+      sound.playVictory();
+      state.celebrationMode = 6.0;
+
+      document.getElementById("gameHud").classList.add("hidden");
+      document.getElementById("levelCompleteModal").classList.add("hidden");
+
+      const totalScore = progress.levelScores.reduce((a, b) => a + b, 0);
+      const totalCorrect = progress.levelCorrects.reduce((a, b) => a + b, 0);
+
+      document.getElementById("finalPraiseTitle").textContent = `Selamat, ${state.playerName}!`;
+
+      let tierPraise = "";
+      if (totalScore >= 1300) {
+        tierPraise = `Luar biasa, ${state.playerName}! Kamu meraih predikat Penjaga Taman Burung Legendaris! Pengetahuanmu tentang alam dan satwa sangat mengagumkan!`;
+      } else if (totalScore >= 900) {
+        tierPraise = `Hebat sekali, ${state.playerName}! Kamu berhasil menuntaskan kelima level dan membuktikan dirimu sebagai Sahabat Alam yang cerdas!`;
+      } else {
+        tierPraise = `Bagus sekali, ${state.playerName}! Kamu berani menyelesaikan seluruh 5 level petualangan. Teruslah belajar dan jaga kelestarian alam di sekitarmu!`;
+      }
+
+      document.getElementById("finalPraiseMessage").textContent = tierPraise;
+      document.getElementById("finalTotalScore").textContent = totalScore;
+      document.getElementById("finalCorrectCount").textContent = `${totalCorrect}/15`;
+      document.getElementById("finalTotalTime").textContent = formatTime(state.elapsedSeconds);
+
+      // Rincian skor per level
+      const breakdown = document.getElementById("finalLevelBreakdown");
+      breakdown.innerHTML = "";
+      gameData.levels.forEach((lvl, idx) => {
+        const sc = progress.levelScores[idx] || 0;
+        const stars = sc === 300 ? "⭐⭐⭐" : sc >= 200 ? "⭐⭐" : sc >= 100 ? "⭐" : "🌱";
+        const card = document.createElement("div");
+        card.className = "bg-white/90 border-2 border-slate-200 rounded-xl p-2 text-center";
+        card.innerHTML = `
+          <div class="text-[10px] font-extrabold text-slate-500">LVL ${lvl.id}</div>
+          <div class="text-xs sm:text-sm my-0.5">${stars}</div>
+          <div class="font-display font-bold text-xs sm:text-sm text-slate-800">${sc}</div>
+        `;
+        breakdown.appendChild(card);
+      });
+
+      // Hujan konfeti perayaan
+      for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+          spawnPopParticles(width * (0.2 + i * 0.15), height * 0.35, BALLOON_THEMES[i % 4]);
+        }, i * 180);
+      }
+
+      document.getElementById("finalResultScreen").classList.remove("hidden");
+    }
+
+    function returnToStartScreen() {
+      stopTimer();
+      state.screen = "start";
+      document.getElementById("gameHud").classList.add("hidden");
+      document.getElementById("feedbackModal").classList.add("hidden");
+      document.getElementById("levelCompleteModal").classList.add("hidden");
+      document.getElementById("finalResultScreen").classList.add("hidden");
+      renderStartScreen();
+      document.getElementById("startScreen").classList.remove("hidden");
+    }
+
+    function renderStartScreen() {
+      document.getElementById("displayMapel").textContent = gameData.meta.mataPelajaran;
+      document.getElementById("displayKelas").textContent = gameData.meta.kelas;
+      document.getElementById("displayMateri").textContent = `Materi: ${gameData.meta.materi}`;
+      document.getElementById("playerNameInput").value = state.playerName;
+
+      const totalScore = progress.levelScores.reduce((a, b) => a + b, 0);
+      document.getElementById("startTotalScore").textContent = totalScore;
+
+      const grid = document.getElementById("levelMapGrid");
+      grid.innerHTML = "";
+
+      gameData.levels.forEach((lvl, idx) => {
+        const isUnlocked = lvl.id <= progress.unlockedLevel;
+        const sc = progress.levelScores[idx] || 0;
+        const isCompleted = sc > 0 || lvl.id < progress.unlockedLevel;
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.disabled = !isUnlocked;
+
+        if (isUnlocked) {
+          btn.className = `btn-arcade text-left p-3 rounded-2xl border-2 transition flex items-center justify-between gap-2 ${
+            isCompleted
+              ? "bg-white border-emerald-400 shadow-sm"
+              : "bg-gradient-to-r from-amber-50 to-white border-amber-400 shadow-md"
+          }`;
+          btn.innerHTML = `
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="px-2 py-0.5 rounded-lg text-[11px] font-extrabold ${
+                  isCompleted ? "bg-emerald-600 text-white" : "bg-amber-500 text-white"
+                }">Level ${lvl.id}</span>
+                <span class="text-xs font-extrabold text-slate-500">${sc}/300 pts</span>
+              </div>
+              <div class="font-display font-bold text-sm text-slate-800 truncate mt-1">${lvl.title}</div>
+            </div>
+            <div class="text-xl shrink-0">${isCompleted ? "🏅" : "▶️"}</div>
+          `;
+          btn.addEventListener("click", () => startLevel(idx));
+        } else {
+          btn.className = "text-left p-3 rounded-2xl border-2 border-slate-200 bg-slate-100/80 opacity-75 flex items-center justify-between gap-2 cursor-not-allowed";
+          btn.innerHTML = `
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="px-2 py-0.5 rounded-lg text-[11px] font-extrabold bg-slate-400 text-white">Level ${lvl.id}</span>
+                <span class="text-[11px] font-bold text-slate-500">Terkunci</span>
+              </div>
+              <div class="font-display font-bold text-sm text-slate-500 truncate mt-1">${lvl.title}</div>
+            </div>
+            <div class="text-xl shrink-0">🔒</div>
+          `;
+        }
+
+        grid.appendChild(btn);
+      });
+
+      const nextPlayIdx = Math.min(progress.unlockedLevel - 1, 4);
+      document.getElementById("startPlayBtnText").textContent =
+        `Mulai Petualangan Level ${nextPlayIdx + 1}`;
+    }
+
+    /*************************************************************************
+     * 7. INTEGRASI MEDIAPIPE HANDS (DETEKSI TELUNJUK & GESTURE PINCH)
+     *    - Kamera TIDAK aktif sebelum pengguna menekan tombol aktivasi!
+     *************************************************************************/
+    const videoEl = document.getElementById("webcamVideo");
+    const handCanvas = document.getElementById("handOverlayCanvas");
+    const handCtx = handCanvas.getContext("2d");
+
+    async function toggleCameraGesture() {
+      if (state.cameraActive) {
+        stopCameraGesture();
+      } else {
+        await startCameraGesture();
+      }
+    }
+
+    function stopCameraGesture() {
+      state.cameraActive = false;
+      state.cameraLoading = false;
+      state.handDetected = false;
+      state.reticle.pinchCharge = 0;
+      state.reticle.isPinching = false;
+
+      if (state.mediaStream) {
+        state.mediaStream.getTracks().forEach((track) => track.stop());
+        state.mediaStream = null;
+      }
+
+      document.getElementById("cameraWidget").classList.add("hidden");
+      updateCameraUiBadges();
+      showToast("Kamera gesture dimatikan. Kontrol mouse/sentuhan tetap aktif.", "info");
+    }
+
+    async function startCameraGesture() {
+      if (state.cameraLoading || state.cameraActive) return;
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast("Browser tidak mendukung akses kamera. Gunakan mouse atau layar sentuh.", "warning");
+        return;
+      }
+
+      if (typeof Hands === "undefined") {
+        showToast("Library deteksi tangan belum siap. Silakan gunakan mouse/sentuh atau muat ulang halaman.", "warning");
+        return;
+      }
+
+      state.cameraLoading = true;
+      updateCameraUiBadges();
+      showToast("Menyiapkan kamera & sensor jari pintar...", "info");
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: "user"
+          },
+          audio: false
+        });
+
+        state.mediaStream = stream;
+        videoEl.srcObject = stream;
+        await videoEl.play();
+
+        if (!state.handsDetector) {
+          state.handsDetector = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+          });
+          state.handsDetector.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.65,
+            minTrackingConfidence: 0.6
+          });
+          state.handsDetector.onResults(onHandResults);
+        }
+
+        state.cameraActive = true;
+        state.cameraLoading = false;
+        document.getElementById("cameraWidget").classList.remove("hidden");
+        updateCameraUiBadges();
+        showToast("Kamera Gesture Aktif! Arahkan telunjuk & cubit (pinch) 🤏", "success");
+
+        // Mulai loop pemrosesan frame kamera
+        processCameraFrameLoop();
+      } catch (err) {
+        console.warn("Kamera tidak dapat diakses:", err);
+        state.cameraActive = false;
+        state.cameraLoading = false;
+        updateCameraUiBadges();
+        showToast("Izin kamera ditolak atau tidak ditemukan. Gunakan mouse/sentuhan untuk bermain!", "warning");
+      }
+    }
+
+    let isSendingFrame = false;
+    async function processCameraFrameLoop() {
+      if (!state.cameraActive) return;
+
+      if (videoEl.readyState >= 2 && !isSendingFrame && state.handsDetector) {
+        isSendingFrame = true;
+        try {
+          await state.handsDetector.send({ image: videoEl });
+        } catch (e) {
+          console.warn("Kesalahan deteksi frame:", e);
+        } finally {
+          isSendingFrame = false;
+        }
+      }
+
+      requestAnimationFrame(processCameraFrameLoop);
+    }
+
+    function onHandResults(results) {
+      if (!state.cameraActive) return;
+
+      const cw = (handCanvas.width = 240);
+      const ch = (handCanvas.height = 180);
+
+      // Gambar video mirror pada mini preview
+      handCtx.save();
+      handCtx.clearRect(0, 0, cw, ch);
+      handCtx.translate(cw, 0);
+      handCtx.scale(-1, 1);
+      handCtx.drawImage(results.image, 0, 0, cw, ch);
+      handCtx.restore();
+
+      const badge = document.getElementById("cameraGestureBadge");
+
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        state.handDetected = true;
+        const lm = results.multiHandLandmarks[0];
+
+        // Gambar kerangka jari pada mini preview
+        drawMiniHandSkeleton(handCtx, lm, cw, ch);
+
+        // Landmark 8 = Ujung Jari Telunjuk, Landmark 4 = Ujung Ibu Jari
+        const indexTip = lm[8];
+        const thumbTip = lm[4];
+        const wrist = lm[0];
+        const middleMcp = lm[9];
+
+        // Mirror horizontal (1 - x) dengan sedikit padding tepi agar sudut layar mudah dijangkau anak
+        const mirroredX = 1 - indexTip.x;
+        const normX = Math.min(1, Math.max(0, (mirroredX - 0.08) / 0.84));
+        const normY = Math.min(1, Math.max(0, (indexTip.y - 0.08) / 0.84));
+
+        state.reticle.targetX = normX * width;
+        state.reticle.targetY = normY * height;
+
+        // Hitung rasio jarak pinch yang invarian terhadap jarak tangan ke kamera
+        const pinchDist = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
+        const handScale = Math.max(0.05, Math.hypot(middleMcp.x - wrist.x, middleMcp.y - wrist.y));
+        const pinchRatio = pinchDist / handScale;
+
+        // Konversi rasio menjadi indikator pengisian pinch (0..1)
+        const charge = Math.min(1, Math.max(0, (0.78 - pinchRatio) / (0.78 - 0.36)));
+        state.reticle.pinchCharge = charge;
+
+        // Deteksi aksi Pinch dengan histeresis agar tidak double-trigger
+        if (pinchRatio < 0.36) {
+          badge.textContent = "PINCH! Tembak! 🎯";
+          badge.className = "absolute bottom-1.5 left-1.5 right-1.5 px-2 py-0.5 rounded-lg bg-emerald-600 text-white text-[10px] sm:text-xs font-extrabold text-center";
+          if (!state.reticle.isPinching) {
+            state.reticle.isPinching = true;
+            triggerShootAtReticle();
+          }
+        } else {
+          badge.textContent = "Telunjuk Terdeteksi ☝️";
+          badge.className = "absolute bottom-1.5 left-1.5 right-1.5 px-2 py-0.5 rounded-lg bg-sky-600/90 text-white text-[10px] sm:text-xs font-bold text-center";
+          if (pinchRatio > 0.46) {
+            state.reticle.isPinching = false;
+          }
+        }
+      } else {
+        state.handDetected = false;
+        state.reticle.pinchCharge = 0;
+        state.reticle.isPinching = false;
+        badge.textContent = "Arahkan Tangan ✋";
+        badge.className = "absolute bottom-1.5 left-1.5 right-1.5 px-2 py-0.5 rounded-lg bg-slate-900/80 text-white text-[10px] sm:text-xs font-bold text-center";
+      }
+    }
+
+    function drawMiniHandSkeleton(ctx2d, lm, cw, ch) {
+      const connections = [
+        [0, 1], [1, 2], [2, 3], [3, 4],
+        [0, 5], [5, 6], [6, 7], [7, 8],
+        [5, 9], [9, 10], [10, 11], [11, 12],
+        [9, 13], [13, 14], [14, 15], [15, 16],
+        [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]
+      ];
+
+      ctx2d.strokeStyle = "#38bdf8";
+      ctx2d.lineWidth = 2;
+      connections.forEach(([a, b]) => {
+        ctx2d.beginPath();
+        ctx2d.moveTo((1 - lm[a].x) * cw, lm[a].y * ch);
+        ctx2d.lineTo((1 - lm[b].x) * cw, lm[b].y * ch);
+        ctx2d.stroke();
+      });
+
+      // Sorot ujung ibu jari (4) dan telunjuk (8)
+      [4, 8].forEach((idx) => {
+        ctx2d.fillStyle = idx === 8 ? "#4ade80" : "#fbbf24";
+        ctx2d.beginPath();
+        ctx2d.arc((1 - lm[idx].x) * cw, lm[idx].y * ch, 5, 0, Math.PI * 2);
+        ctx2d.fill();
+      });
+    }
+
+    function updateCameraUiBadges() {
+      const startBadge = document.getElementById("startCamStatusBadge");
+      const startBtnText = document.getElementById("activateCamBtnText");
+      const hudLabel = document.getElementById("hudCamLabel");
+      const hudBtn = document.getElementById("hudCamToggleBtn");
+
+      if (state.cameraLoading) {
+        startBadge.textContent = "Memuat...";
+        startBadge.className = "px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-amber-200 text-amber-900";
+        startBtnText.textContent = "Menghubungkan Kamera...";
+      } else if (state.cameraActive) {
+        startBadge.textContent = "Aktif ✓";
+        startBadge.className = "px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-200 text-emerald-900";
+        startBtnText.textContent = "Matikan Kamera Gesture";
+        hudLabel.textContent = "Kamera ON";
+        hudBtn.className = "btn-arcade px-2.5 py-1.5 rounded-xl bg-emerald-100 border-2 border-emerald-400 text-emerald-800 text-xs sm:text-sm font-bold flex items-center gap-1";
+      } else {
+        startBadge.textContent = "Nonaktif";
+        startBadge.className = "px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-slate-200 text-slate-700";
+        startBtnText.textContent = "Aktifkan Kamera Gesture";
+        hudLabel.textContent = "Kamera";
+        hudBtn.className = "btn-arcade px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border-2 border-slate-300 text-slate-700 text-xs sm:text-sm font-bold flex items-center gap-1";
+      }
+    }
+
+    /*************************************************************************
+     * 8. ALTERNATIF KONTROL MOUSE & TOUCH (SELALU AKTIF & RESPONSIF)
+     *************************************************************************/
+    canvas.addEventListener("pointermove", (e) => {
+      // Jika tangan sedang terdeteksi kamera, biarkan kamera yang mengarahkan retikel,
+      // kecuali pengguna menggerakkan mouse/sentuhan secara eksplisit.
+      state.reticle.targetX = e.clientX;
+      state.reticle.targetY = e.clientY;
+    });
+
+    canvas.addEventListener("pointerdown", (e) => {
+      sound.init();
+      state.reticle.x = e.clientX;
+      state.reticle.y = e.clientY;
+      state.reticle.targetX = e.clientX;
+      state.reticle.targetY = e.clientY;
+      triggerShootAtReticle();
+    });
+
+    /*************************************************************************
+     * 9. RENDERING LOOP KANVAS TAMAN FANTASI (60 FPS)
+     *************************************************************************/
+    let lastFrameTime = performance.now();
+
+    function gameLoop(now) {
+      const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
+      lastFrameTime = now;
+
+      updateSimulation(dt, now / 1000);
+      renderScene(now / 1000);
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function updateSimulation(dt, timeSec) {
+      // 1. Gerakkan awan
+      state.clouds.forEach((c) => {
+        c.x += c.speed * dt;
+        if (c.x - 120 * c.scale > width) {
+          c.x = -120 * c.scale;
+        }
+      });
+
+      // 2. Gerakkan burung kartun
+      if (state.celebrationMode > 0) {
+        state.celebrationMode = Math.max(0, state.celebrationMode - dt);
+      }
+
+      state.birds.forEach((bird, idx) => {
+        const speedMult = state.celebrationMode > 0 ? 1.8 : 1;
+        bird.x += bird.vx * speedMult * dt;
+        bird.y = bird.baseY + Math.sin(timeSec * bird.bobFreq + bird.phase) * bird.bobAmp;
+
+        if (bird.vx > 0 && bird.x > width + 70) {
+          bird.x = -70;
+          bird.baseY = height * (0.18 + ((idx * 0.11) % 0.42));
+        } else if (bird.vx < 0 && bird.x < -70) {
+          bird.x = width + 70;
+          bird.baseY = height * (0.18 + ((idx * 0.11) % 0.42));
+        }
+      });
+
+      // 3. Perhalus pergerakan retikel
+      const smoothFactor = 1 - Math.pow(0.001, dt);
+      state.reticle.x += (state.reticle.targetX - state.reticle.x) * smoothFactor;
+      state.reticle.y += (state.reticle.targetY - state.reticle.y) * smoothFactor;
+
+      // 4. Animasi balon mengapung lembut & deteksi hover retikel
+      if (state.screen === "playing") {
+        const newHover = findBalloonUnderPoint(state.reticle.x, state.reticle.y);
+        if (newHover !== -1 && newHover !== state.reticle.hoveredBalloonIdx) {
+          sound.playHover();
+        }
+        state.reticle.hoveredBalloonIdx = newHover;
+
+        state.balloons.forEach((b, idx) => {
+          if (b.popped) return;
+          b.scale += (1 - b.scale) * Math.min(1, dt * 7);
+          const targetHover = idx === newHover ? 1.07 : 1.0;
+          b.hoverScale += (targetHover - b.hoverScale) * Math.min(1, dt * 12);
+
+          const floatX = Math.cos(timeSec * 1.3 + b.phase) * 10;
+          const floatY = Math.sin(timeSec * 1.9 + b.phase) * 12;
+          b.x += (b.anchorX + floatX - b.x) * Math.min(1, dt * 6);
+          b.y += (b.anchorY + floatY - b.y) * Math.min(1, dt * 6);
+        });
+      }
+
+      // 5. Update partikel konfeti & gelombang kejut
+      for (let i = state.particles.length - 1; i >= 0; i--) {
+        const p = state.particles[i];
+        if (p.shape === "ring") {
+          p.size += (p.maxRadius - p.size) * Math.min(1, dt * 10);
+          p.alpha -= dt * 2.4;
+        } else {
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.vy += 420 * dt; // gravitasi lembut
+          p.rotation += p.vRot * dt;
+          p.alpha -= dt * 1.25;
+        }
+        if (p.alpha <= 0) {
+          state.particles.splice(i, 1);
+        }
+      }
+
+      // 6. Update teks melayang (+100 Poin)
+      for (let i = state.floatingTexts.length - 1; i >= 0; i--) {
+        const ft = state.floatingTexts[i];
+        ft.y += ft.vy * dt;
+        ft.alpha -= dt * 0.9;
+        if (ft.alpha <= 0) {
+          state.floatingTexts.splice(i, 1);
+        }
+      }
+    }
+
+    function renderScene(timeSec) {
+      const level = gameData.levels[state.currentLevelIdx] || gameData.levels[0];
+
+      // 1. Langit biru bergradasi cerah
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, height);
+      skyGrad.addColorStop(0, level.skyTop || "#38bdf8");
+      skyGrad.addColorStop(1, level.skyBottom || "#bae6fd");
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // 2. Matahari bersinar dengan sinar berputar lembut
+      drawSun(timeSec);
+
+      // 3. Awan-awan lembut
+      state.clouds.forEach((c) => drawCloud(c.x, c.y, c.scale));
+
+      // 4. Pegunungan & perbukitan hijau berlapis
+      drawHillsAndTrees(timeSec);
+
+      // 5. Burung-burung kartun lucu terbang di taman
+      state.birds.forEach((bird) => drawCartoonBird(bird, timeSec));
+
+      // 6. Balon target berisi pilihan jawaban
+      if (state.screen === "playing" || state.screen === "feedback") {
+        state.balloons.forEach((b) => {
+          if (!b.popped) drawAnswerBalloon(b, timeSec);
+        });
+      }
+
+      // 7. Partikel ledakan balon & teks poin
+      drawParticles();
+      drawFloatingTexts();
+
+      // 8. Retikel bidik pemburu cerdas
+      if (state.screen === "playing" || state.cameraActive) {
+        drawReticle(timeSec);
+      }
+    }
+
+    function drawSun(timeSec) {
+      const sunX = width * 0.88;
+      const sunY = height * 0.14;
+
+      ctx.save();
+      ctx.translate(sunX, sunY);
+
+      // Cahaya halo
+      const halo = ctx.createRadialGradient(0, 0, 20, 0, 0, 120);
+      halo.addColorStop(0, "rgba(254, 240, 138, 0.85)");
+      halo.addColorStop(1, "rgba(254, 240, 138, 0)");
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(0, 0, 120, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Sinar matahari berputar
+      ctx.rotate(timeSec * 0.15);
+      ctx.strokeStyle = "rgba(253, 224, 71, 0.55)";
+      ctx.lineWidth = 6;
+      ctx.lineCap = "round";
+      for (let i = 0; i < 12; i++) {
+        ctx.rotate(Math.PI / 6);
+        ctx.beginPath();
+        ctx.moveTo(46, 0);
+        ctx.lineTo(68, 0);
+        ctx.stroke();
+      }
+
+      // Inti matahari
+      ctx.fillStyle = "#fde047";
+      ctx.beginPath();
+      ctx.arc(0, 0, 36, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawCloud(x, y, scale) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+      ctx.beginPath();
+      ctx.arc(0, 0, 34, 0, Math.PI * 2);
+      ctx.arc(32, -8, 42, 0, Math.PI * 2);
+      ctx.arc(70, 0, 32, 0, Math.PI * 2);
+      ctx.arc(35, 14, 34, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawHillsAndTrees(timeSec) {
+      // Gunung kejauhan
+      ctx.fillStyle = "rgba(125, 211, 252, 0.55)";
+      ctx.beginPath();
+      ctx.moveTo(0, height);
+      ctx.lineTo(0, height * 0.72);
+      ctx.lineTo(width * 0.22, height * 0.54);
+      ctx.lineTo(width * 0.48, height * 0.7);
+      ctx.lineTo(width * 0.76, height * 0.52);
+      ctx.lineTo(width, height * 0.68);
+      ctx.lineTo(width, height);
+      ctx.closePath();
+      ctx.fill();
+
+      // Bukit hijau belakang
+      ctx.fillStyle = "#4ade80";
+      ctx.beginPath();
+      ctx.moveTo(0, height);
+      ctx.quadraticCurveTo(width * 0.28, height * 0.73, width * 0.58, height * 0.83);
+      ctx.quadraticCurveTo(width * 0.82, height * 0.9, width, height * 0.76);
+      ctx.lineTo(width, height);
+      ctx.closePath();
+      ctx.fill();
+
+      // Bukit hijau depan
+      const grassGrad = ctx.createLinearGradient(0, height * 0.8, 0, height);
+      grassGrad.addColorStop(0, "#22c55e");
+      grassGrad.addColorStop(1, "#15803d");
+      ctx.fillStyle = grassGrad;
+      ctx.beginPath();
+      ctx.moveTo(0, height);
+      ctx.quadraticCurveTo(width * 0.45, height * 0.82, width, height * 0.87);
+      ctx.lineTo(width, height);
+      ctx.closePath();
+      ctx.fill();
+
+      // Pepohonan fantasi bergoyang di sisi kiri & kanan taman
+      drawStylizedTree(width * 0.06, height * 0.88, 1.0, timeSec, 0);
+      drawStylizedTree(width * 0.14, height * 0.91, 0.72, timeSec, 1.2);
+      drawStylizedTree(width * 0.93, height * 0.88, 1.05, timeSec, 2.4);
+      drawStylizedTree(width * 0.85, height * 0.92, 0.75, timeSec, 3.6);
+    }
+
+    function drawStylizedTree(x, y, scale, timeSec, offset) {
+      const sway = Math.sin(timeSec * 1.4 + offset) * 0.04;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+      ctx.rotate(sway);
+
+      // Batang pohon
+      ctx.fillStyle = "#92400e";
+      ctx.beginPath();
+      ctx.roundRect(-10, -78, 20, 82, 8);
+      ctx.fill();
+
+      // Rimbunan daun bulat berlapis
+      ctx.fillStyle = "#16a34a";
+      ctx.beginPath();
+      ctx.arc(-22, -82, 28, 0, Math.PI * 2);
+      ctx.arc(22, -82, 28, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#4ade80";
+      ctx.beginPath();
+      ctx.arc(0, -104, 34, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Bunga/buah kecil di pohon
+      ctx.fillStyle = "#fb7185";
+      ctx.beginPath();
+      ctx.arc(-14, -95, 4.5, 0, Math.PI * 2);
+      ctx.arc(16, -86, 4.5, 0, Math.PI * 2);
+      ctx.arc(4, -112, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawCartoonBird(bird, timeSec) {
+      const dir = bird.vx >= 0 ? 1 : -1;
+      const flap = Math.sin(timeSec * 14 + bird.phase) * 0.65;
+
+      ctx.save();
+      ctx.translate(bird.x, bird.y);
+      ctx.scale(dir * bird.scale, bird.scale);
+
+      // Ekor
+      ctx.fillStyle = bird.palette.wing;
+      ctx.beginPath();
+      ctx.moveTo(-22, 0);
+      ctx.lineTo(-38, -10);
+      ctx.lineTo(-34, 8);
+      ctx.closePath();
+      ctx.fill();
+
+      // Badan bulat lucu
+      ctx.fillStyle = bird.palette.body;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 24, 18, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Perut cerah
+      ctx.fillStyle = bird.palette.belly;
+      ctx.beginPath();
+      ctx.ellipse(4, 5, 16, 11, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Jambul lucu di kepala
+      ctx.fillStyle = bird.palette.wing;
+      ctx.beginPath();
+      ctx.arc(10, -18, 6, 0, Math.PI * 2);
+      ctx.arc(4, -16, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Sayap mengepak
+      ctx.save();
+      ctx.translate(-2, -2);
+      ctx.rotate(flap);
+      ctx.fillStyle = bird.palette.wing;
+      ctx.beginPath();
+      ctx.ellipse(-4, -8, 14, 7, -0.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Mata kartun ekspresif
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(13, -5, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#0f172a";
+      ctx.beginPath();
+      ctx.arc(14.5, -5, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(15.5, -6, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Paruh oranye
+      ctx.fillStyle = bird.palette.beak;
+      ctx.beginPath();
+      ctx.moveTo(22, -4);
+      ctx.lineTo(33, 0);
+      ctx.lineTo(22, 5);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawAnswerBalloon(b, timeSec) {
+      const totalScale = b.scale * b.hoverScale;
+      const sway = Math.sin(timeSec * 2.2 + b.phase) * 0.04;
+
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.scale(totalScale, totalScale);
+      ctx.rotate(sway);
+
+      // 1. Tali balon bergelombang di bagian bawah
+      ctx.strokeStyle = b.theme.string;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, b.ry + 6);
+      ctx.quadraticCurveTo(Math.sin(timeSec * 4 + b.phase) * 14, b.ry + 32, 0, b.ry + 58);
+      ctx.stroke();
+
+      // Simpul leher balon
+      ctx.fillStyle = b.theme.bottom;
+      ctx.beginPath();
+      ctx.moveTo(-9, b.ry + 8);
+      ctx.lineTo(9, b.ry + 8);
+      ctx.lineTo(0, b.ry - 2);
+      ctx.closePath();
+      ctx.fill();
+
+      // 2. Halo emas saat retikel membidik balon ini
+      if (b.hoverScale > 1.02) {
+        ctx.strokeStyle = "rgba(253, 224, 71, 0.95)";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, b.rx + 7, b.ry + 7, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // 3. Badan balon utama dengan gradasi mengkilap
+      const grad = ctx.createRadialGradient(-b.rx * 0.3, -b.ry * 0.35, 10, 0, 0, Math.max(b.rx, b.ry));
+      grad.addColorStop(0, b.theme.top);
+      grad.addColorStop(1, b.theme.bottom);
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, b.rx, b.ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = "#ffffff";
+      ctx.stroke();
+
+      // Kilau cahaya balon
+      ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
+      ctx.beginPath();
+      ctx.ellipse(-b.rx * 0.52, -b.ry * 0.38, b.rx * 0.16, b.ry * 0.28, -0.45, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 4. Lencana huruf pilihan (A / B / C / D) di bagian atas balon
+      const badgeY = -b.ry + 4;
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(0, badgeY, 19, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = b.theme.bottom;
+      ctx.stroke();
+
+      ctx.fillStyle = b.theme.bottom;
+      ctx.font = "900 17px 'Fredoka', sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(b.letter, 0, badgeY + 1);
+
+      // 5. Kartu label jawaban kontras tinggi di tengah balon agar teks 100% terbaca jelas
+      const cardW = b.rx * 1.66;
+      const cardH = b.ry * 1.12;
+      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+      ctx.beginPath();
+      ctx.roundRect(-cardW / 2, -cardH / 2 + 8, cardW, cardH, 16);
+      ctx.fill();
+
+      // Tulis teks jawaban multi-baris rapi di dalam kartu balon
+      const fontSize = width < 720 ? 12.5 : 14.5;
+      ctx.fillStyle = "#1e293b";
+      ctx.font = `800 ${fontSize}px 'Nunito', sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      drawWrappedText(ctx, b.text, 0, 9, cardW - 18, fontSize * 1.24);
+
+      ctx.restore();
+    }
+
+    function drawWrappedText(context, text, x, y, maxWidth, lineHeight) {
+      const words = text.split(" ");
+      const lines = [];
+      let currentLine = words[0] || "";
+
+      for (let i = 1; i < words.length; i++) {
+        const testLine = currentLine + " " + words[i];
+        const metrics = context.measureText(testLine);
+        if (metrics.width <= maxWidth) {
+          currentLine = testLine;
+        } else {
+          lines.push(currentLine);
+          currentLine = words[i];
+        }
+      }
+      lines.push(currentLine);
+
+      const totalHeight = lines.length * lineHeight;
+      const startY = y - totalHeight / 2 + lineHeight / 2;
+
+      lines.forEach((line, index) => {
+        context.fillText(line, x, startY + index * lineHeight);
+      });
+    }
+
+    function drawParticles() {
+      state.particles.forEach((p) => {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.alpha);
+        ctx.translate(p.x, p.y);
+
+        if (p.shape === "ring") {
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(0, 0, p.size, 0, Math.PI * 2);
+          ctx.stroke();
+        } else if (p.shape === "star") {
+          ctx.rotate(p.rotation);
+          ctx.fillStyle = p.color;
+          drawStarShape(ctx, 0, 0, 5, p.size, p.size * 0.45);
+          ctx.fill();
+        } else {
+          ctx.rotate(p.rotation);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.size / 2, -p.size / 3, p.size, p.size * 0.66);
+        }
+        ctx.restore();
+      });
+    }
+
+    function drawStarShape(c, cx, cy, spikes, outerR, innerR) {
+      let rot = (Math.PI / 2) * 3;
+      const step = Math.PI / spikes;
+      c.beginPath();
+      c.moveTo(cx, cy - outerR);
+      for (let i = 0; i < spikes; i++) {
+        c.lineTo(cx + Math.cos(rot) * outerR, cy + Math.sin(rot) * outerR);
+        rot += step;
+        c.lineTo(cx + Math.cos(rot) * innerR, cy + Math.sin(rot) * innerR);
+        rot += step;
+      }
+      c.closePath();
+    }
+
+    function drawFloatingTexts() {
+      state.floatingTexts.forEach((ft) => {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, ft.alpha);
+        ctx.font = "700 24px 'Fredoka', sans-serif";
+        ctx.textAlign = "center";
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = "#ffffff";
+        ctx.strokeText(ft.text, ft.x, ft.y);
+        ctx.fillStyle = ft.color;
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.restore();
+      });
+    }
+
+    function drawReticle(timeSec) {
+      const { x, y, pinchCharge, hoveredBalloonIdx } = state.reticle;
+      const isHovering = hoveredBalloonIdx !== -1;
+      const baseRadius = isHovering ? 32 : 26;
+
+      ctx.save();
+      ctx.translate(x, y);
+
+      // Cahaya latar lembut
+      const glow = ctx.createRadialGradient(0, 0, 4, 0, 0, baseRadius + 14);
+      glow.addColorStop(0, isHovering ? "rgba(250, 204, 21, 0.45)" : "rgba(255, 255, 255, 0.35)");
+      glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(0, 0, baseRadius + 14, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cincin luar berputar
+      ctx.save();
+      ctx.rotate(timeSec * 1.8);
+      ctx.strokeStyle = isHovering ? "#facc15" : "#ffffff";
+      ctx.lineWidth = 3.5;
+      ctx.setLineDash([12, 8]);
+      ctx.beginPath();
+      ctx.arc(0, 0, baseRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // Cincin dalam gelap untuk kontras tinggi di langit cerah
+      ctx.strokeStyle = "#0f172a";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, baseRadius - 6, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Indikator progres Pinch (ketika jari mendekat)
+      if (pinchCharge > 0.05) {
+        ctx.strokeStyle = "#22c55e";
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(0, 0, baseRadius + 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pinchCharge);
+        ctx.stroke();
+      }
+
+      // Garis silang presisi
+      ctx.strokeStyle = isHovering ? "#ef4444" : "#0284c7";
+      ctx.lineWidth = 3;
+      const arm = 12;
+      ctx.beginPath();
+      ctx.moveTo(-baseRadius - 6, 0);
+      ctx.lineTo(-arm, 0);
+      ctx.moveTo(arm, 0);
+      ctx.lineTo(baseRadius + 6, 0);
+      ctx.moveTo(0, -baseRadius - 6);
+      ctx.lineTo(0, -arm);
+      ctx.moveTo(0, arm);
+      ctx.lineTo(0, baseRadius + 6);
+      ctx.stroke();
+
+      // Titik bidik tengah
+      ctx.fillStyle = isHovering ? "#ef4444" : "#f59e0b";
+      ctx.beginPath();
+      ctx.arc(0, 0, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    /*************************************************************************
+     * 10. MODE GURU (EDITOR MAPEL, MATERI, KELAS & BANK SOAL DI BROWSER)
+     *************************************************************************/
+    let teacherDraftData = null;
+    let teacherSelectedLevelIdx = 0;
+
+    function openTeacherModal() {
+      teacherDraftData = JSON.parse(JSON.stringify(gameData));
+      teacherSelectedLevelIdx = 0;
+
+      document.getElementById("editMapelInput").value = teacherDraftData.meta.mataPelajaran;
+      document.getElementById("editMateriInput").value = teacherDraftData.meta.materi;
+      document.getElementById("editKelasInput").value = teacherDraftData.meta.kelas;
+
+      renderTeacherLevelTabs();
+      renderTeacherLevelQuestions();
+      document.getElementById("teacherModal").classList.remove("hidden");
+    }
+
+    function saveCurrentTeacherTabInputs() {
+      if (!teacherDraftData) return;
+      const lvl = teacherDraftData.levels[teacherSelectedLevelIdx];
+      lvl.title = document.getElementById("editLevelThemeInput").value.trim() || lvl.title;
+
+      lvl.questions.forEach((q, qIdx) => {
+        const qInput = document.getElementById(`t_q_${qIdx}`);
+        const expInput = document.getElementById(`t_exp_${qIdx}`);
+        const ansSelect = document.getElementById(`t_ans_${qIdx}`);
+
+        if (qInput) q.question = qInput.value.trim() || q.question;
+        if (expInput) q.explanation = expInput.value.trim() || q.explanation;
+        if (ansSelect) q.correctIndex = parseInt(ansSelect.value, 10) || 0;
+
+        for (let optIdx = 0; optIdx < 4; optIdx++) {
+          const optEl = document.getElementById(`t_opt_${qIdx}_${optIdx}`);
+          if (optEl) q.options[optIdx] = optEl.value.trim() || q.options[optIdx];
+        }
+      });
+    }
+
+    function renderTeacherLevelTabs() {
+      const tabs = document.getElementById("teacherLevelTabs");
+      tabs.innerHTML = "";
+      teacherDraftData.levels.forEach((lvl, idx) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `px-3 py-1.5 rounded-xl font-bold text-xs border-2 transition ${
+          idx === teacherSelectedLevelIdx
+            ? "bg-purple-600 text-white border-purple-700"
+            : "bg-white text-slate-700 border-slate-300 hover:bg-purple-50"
+        }`;
+        btn.textContent = `Level ${lvl.id}`;
+        btn.addEventListener("click", () => {
+          saveCurrentTeacherTabInputs();
+          teacherSelectedLevelIdx = idx;
+          renderTeacherLevelTabs();
+          renderTeacherLevelQuestions();
+        });
+        tabs.appendChild(btn);
+      });
+    }
+
+    function renderTeacherLevelQuestions() {
+      const lvl = teacherDraftData.levels[teacherSelectedLevelIdx];
+      document.getElementById("editLevelThemeInput").value = lvl.title;
+
+      const container = document.getElementById("teacherQuestionsContainer");
+      container.innerHTML = "";
+
+      lvl.questions.forEach((q, qIdx) => {
+        const card = document.createElement("div");
+        card.className = "bg-slate-50 border-2 border-slate-200 rounded-2xl p-3.5 space-y-2.5";
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="font-display font-bold text-sm text-purple-800">Soal ${qIdx + 1} (${q.type})</span>
+            <div class="flex items-center gap-1.5">
+              <label class="text-xs font-extrabold text-slate-600">Jawaban Benar:</label>
+              <select id="t_ans_${qIdx}" class="px-2 py-1 rounded-lg border-2 border-emerald-300 bg-emerald-50 text-xs font-extrabold text-emerald-900">
+                <option value="0" ${q.correctIndex === 0 ? "selected" : ""}>Pilihan A</option>
+                <option value="1" ${q.correctIndex === 1 ? "selected" : ""}>Pilihan B</option>
+                <option value="2" ${q.correctIndex === 2 ? "selected" : ""}>Pilihan C</option>
+                <option value="3" ${q.correctIndex === 3 ? "selected" : ""}>Pilihan D</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <textarea id="t_q_${qIdx}" rows="2" class="w-full px-3 py-2 rounded-xl border-2 border-slate-200 text-xs sm:text-sm font-bold text-slate-800">${q.question}</textarea>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            ${["A", "B", "C", "D"]
+              .map(
+                (letter, optIdx) => `
+              <div class="flex items-center gap-1.5">
+                <span class="w-6 h-6 rounded-lg bg-slate-200 flex items-center justify-center font-extrabold text-xs text-slate-700 shrink-0">${letter}</span>
+                <input id="t_opt_${qIdx}_${optIdx}" type="text" value="${q.options[optIdx].replace(/"/g, "&quot;")}" class="w-full px-2.5 py-1.5 rounded-xl border-2 border-slate-200 text-xs font-bold text-slate-800" />
+              </div>`
+              )
+              .join("")}
+          </div>
+          <div>
+            <label class="block text-[11px] font-extrabold text-amber-800 mb-0.5">💡 Penjelasan Ramah Anak:</label>
+            <input id="t_exp_${qIdx}" type="text" value="${q.explanation.replace(/"/g, "&quot;")}" class="w-full px-3 py-1.5 rounded-xl border-2 border-amber-200 bg-amber-50/60 text-xs font-bold text-slate-700" />
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    /*************************************************************************
+     * 11. EVENT LISTENERS UI & INISIALISASI SAAT WINDOW ONLOAD
+     *************************************************************************/
+    function bindUiEvents() {
+      // Tombol aktivasi kamera gesture
+      document.getElementById("activateCamBtn").addEventListener("click", toggleCameraGesture);
+      document.getElementById("hudCamToggleBtn").addEventListener("click", toggleCameraGesture);
+
+      // Tombol mute/unmute suara
+      document.getElementById("hudSoundToggleBtn").addEventListener("click", () => {
+        const isMuted = sound.toggleMute();
+        document.getElementById("hudSoundIcon").textContent = isMuted ? "🔇" : "🔊";
+      });
+
+      // Tombol kembali ke peta level dari HUD
+      document.getElementById("hudHomeBtn").addEventListener("click", returnToStartScreen);
+
+      // Tombol mulai bermain utama pada layar awal
+      document.getElementById("startPlayBtn").addEventListener("click", () => {
+        const nextIdx = Math.min(progress.unlockedLevel - 1, 4);
+        startLevel(nextIdx);
+      });
+
+      // Reset progres level & skor
+      document.getElementById("resetProgressBtn").addEventListener("click", () => {
+        progress = {
+          playerName: document.getElementById("playerNameInput").value.trim(),
+          unlockedLevel: 1,
+          levelScores: [0, 0, 0, 0, 0],
+          levelCorrects: [0, 0, 0, 0, 0]
+        };
+        state.totalScore = 0;
+        state.totalCorrect = 0;
+        state.elapsedSeconds = 0;
+        saveProgress();
+        renderStartScreen();
+        showToast("Progres level & skor telah diatur ulang ke Level 1.", "info");
+      });
+
+      // Tombol lanjut pada modal feedback
+      document.getElementById("nextQuestionBtn").addEventListener("click", advanceAfterFeedback);
+
+      // Tombol modal selesai level
+      document.getElementById("backToMapFromLevelBtn").addEventListener("click", returnToStartScreen);
+      document.getElementById("nextLevelBtn").addEventListener("click", () => {
+        document.getElementById("levelCompleteModal").classList.add("hidden");
+        startLevel(state.currentLevelIdx + 1);
+      });
+
+      // Tombol halaman hasil akhir
+      document.getElementById("replayGameBtn").addEventListener("click", () => {
+        progress.levelScores = [0, 0, 0, 0, 0];
+        progress.levelCorrects = [0, 0, 0, 0, 0];
+        state.totalScore = 0;
+        state.totalCorrect = 0;
+        state.elapsedSeconds = 0;
+        saveProgress();
+        startLevel(0);
+      });
+      document.getElementById("finalToMapBtn").addEventListener("click", returnToStartScreen);
+
+      // Mode Guru Modal
+      document.getElementById("openTeacherModeBtn").addEventListener("click", openTeacherModal);
+      document.getElementById("closeTeacherModalBtn").addEventListener("click", () => {
+        document.getElementById("teacherModal").classList.add("hidden");
+      });
+      document.getElementById("cancelTeacherBtn").addEventListener("click", () => {
+        document.getElementById("teacherModal").classList.add("hidden");
+      });
+      document.getElementById("saveTeacherDataBtn").addEventListener("click", () => {
+        saveCurrentTeacherTabInputs();
+        teacherDraftData.meta.mataPelajaran =
+          document.getElementById("editMapelInput").value.trim() || DEFAULT_GAME_DATA.meta.mataPelajaran;
+        teacherDraftData.meta.materi =
+          document.getElementById("editMateriInput").value.trim() || DEFAULT_GAME_DATA.meta.materi;
+        teacherDraftData.meta.kelas =
+          document.getElementById("editKelasInput").value.trim() || DEFAULT_GAME_DATA.meta.kelas;
+
+        gameData = JSON.parse(JSON.stringify(teacherDraftData));
+        saveGameData();
+        renderStartScreen();
+        document.getElementById("teacherModal").classList.add("hidden");
+        showToast("Perubahan Mata Pelajaran & Soal berhasil disimpan!", "success");
+      });
+      document.getElementById("resetDefaultDataBtn").addEventListener("click", () => {
+        gameData = JSON.parse(JSON.stringify(DEFAULT_GAME_DATA));
+        saveGameData();
+        teacherDraftData = JSON.parse(JSON.stringify(gameData));
+        document.getElementById("editMapelInput").value = teacherDraftData.meta.mataPelajaran;
+        document.getElementById("editMateriInput").value = teacherDraftData.meta.materi;
+        document.getElementById("editKelasInput").value = teacherDraftData.meta.kelas;
+        renderTeacherLevelTabs();
+        renderTeacherLevelQuestions();
+        renderStartScreen();
+        showToast("Soal & identitas berhasil dikembalikan ke default IPAS Kelas 4 SD.", "info");
+      });
+    }
+
+    window.onload = function () {
+      resizeCanvas();
+      initScenery();
+      bindUiEvents();
+      renderStartScreen();
+      requestAnimationFrame(gameLoop);
+    };
+  </script>
+</body>
+</html>
